@@ -1,0 +1,88 @@
+Panels:
+  - Class: rviz_common/Displays
+    Help Height: 78
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /Global Options1
+        - /RobotModel1
+        - /TF1
+        - /LaserScan1
+      Splitter Ratio: 0.5
+    Tree Height: 557
+  - Class: rviz_common/Views
+    Name: Views
+    collapsed: false
+
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Enabled: true
+      Name: Grid
+      Reference Frame: odom
+      Value: true
+
+    - Class: rviz_default_plugins/RobotModel
+      Enabled: true
+      Name: RobotModel
+      Description Topic:
+        Value: /robot_description
+      TF Prefix: ""
+      Value: true
+
+    - Class: rviz_default_plugins/TF
+      Enabled: true
+      Name: TF
+      Reference Frame: odom
+      Value: true
+
+    - Class: rviz_default_plugins/LaserScan
+      Enabled: true
+      Name: LaserScan
+      Topic:
+        Depth: 5
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability: Reliable
+        Value: /scan
+      Color: 0; 255; 0
+      Value: true
+
+  Enabled: true
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: odom
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+  Transformation:
+    TF:
+      System:
+        Sync Mode: 0
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 3
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0
+      Name: Current View
+      Near Clip Distance: 0.01
+      Pitch: 0.785398
+      Target Frame: odom
+      Value: Orbit (rviz)
+      Yaw: 0.785398
+    Saved: []
+
+Window Geometry:
+  Displays: collapsed false
+  Height: 846
+  Width: 1200
+  X: 0
+  Y: 0

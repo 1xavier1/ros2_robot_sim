@@ -1,0 +1,81 @@
+# LIO-SAM2 Configuration for ROS2 Humble
+# 适用于 Velodyne VLP-16 + IMU + Wheel Encoder
+
+# Robot Parameters
+robot:
+  # Wheel base and track width (m)
+  wheelbase: 0.45
+  track_width: 0.35
+  wheel_radius: 0.07
+
+# Sensor Topics
+sensor:
+  imu: "/robot/imu/data"
+  velodyne: "/robot/velodyne_points"
+  wheel_encoder:
+    front_left: "/robot/wheel_encoder/front_left"
+    front_right: "/robot/wheel_encoder/front_right"
+    rear_left: "/robot/wheel_encoder/rear_left"
+    rear_right: "/robot/wheel_encoder/rear_right"
+
+# Point cloud registration
+pointCloud:
+  registerType: "use_2d_ptr"  # or "use_3d_ptr" for 3D
+  dense_map: false
+  feat_thres: 1.0
+  max_range: 100.0
+  min_range: 0.1
+  voxel_filter:
+    size: 0.1
+
+# IMU Parameters
+imu:
+  imu_topic: "/robot/imu/data"
+  imu_rotation: 0.0  # rotation from IMU to base_link (pitch)
+  acc_cov: 0.008
+  gyr_cov: 0.002
+  b_acc_cov: 0.05
+  b_gyr_cov: 0.005
+
+# Extrinsic parameters (lidar to IMU)
+extrinsic:
+  # Rotation: roll, pitch, yaw
+  rotation: [0.0, 0.0, 0.0]
+  # Translation: x, y, z
+  translation: [0.0, 0.0, 0.0]
+
+# Feature extraction
+feature:
+  edge:
+    threshold: 1.0
+    scan_num: 20
+    line_width: 0.005
+  surf:
+    threshold: 0.1
+    scan_num: 20
+    line_width: 0.005
+    adjacent_num: 3
+
+# Map optimization
+optimization:
+  max_iteration: 10
+  loop_closure:
+    enable: true
+    enable_outlier_detection: false
+    loop_closure_enable_flag: true
+    adjacent_threshold: 15.0
+    history_search_radius: 15.0
+    history_search_time_nn: 50
+    icp_threshold: 1.5
+
+# Visualization
+visualization:
+  cloud_frame: "velodyne"
+  odom_frame: "odom"
+  map_frame: "map"
+
+# Rate parameters
+rate:
+  imu: 100.0
+  scan: 10.0
+  map: 5.0

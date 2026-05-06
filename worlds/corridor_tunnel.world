@@ -1,0 +1,492 @@
+<?xml version="1.0"?>
+<sdf version="1.6">
+  <world name="corridor_tunnel_world">
+
+    <!-- Physics -->
+    <physics type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+
+    <!-- Scene - darker inside tunnel -->
+    <scene>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <shadows>true</shadows>
+    </scene>
+
+    <!-- Light - sun covers outdoor area -->
+    <light type="sun" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>15 0 30 0 0 0</pose>
+    </light>
+
+    <!-- Ground - large outdoor area -->
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+            </plane>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.3 0.5 0.2 1</ambient>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==================== LONG TUNNEL (30m long, 3m wide, 2.5m high) ==================== -->
+    <!-- Tunnel floor -->
+    <model name="tunnel_floor">
+      <static>true</static>
+      <pose>15 0 0.01 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>30 3 0.02</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>30 3 0.02</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.4 0.4 0.4 1</ambient>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Tunnel Left Wall - semi-transparent -->
+    <model name="tunnel_wall_left">
+      <static>true</static>
+      <pose>15 1.5 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>30 0.15 2.5</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>30 0.15 2.5</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.6 0.55 0.5 1</ambient>
+          </material>
+          <transparency>0.5</transparency>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Tunnel Right Wall - semi-transparent -->
+    <model name="tunnel_wall_right">
+      <static>true</static>
+      <pose>15 -1.5 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>30 0.15 2.5</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>30 0.15 2.5</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.6 0.55 0.5 1</ambient>
+          </material>
+          <transparency>0.5</transparency>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Tunnel Roof (blocks GPS signal) - semi-transparent -->
+    <model name="tunnel_roof">
+      <static>true</static>
+      <pose>15 0 2.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>30 3 0.1</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>30 3 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.55 1</ambient>
+          </material>
+          <transparency>0.5</transparency>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Tunnel Entrance Frame (Front) - REMOVED to allow robot entry -->
+
+    <!-- Tunnel Entrance Frame (Back) - decorative only -->
+    <model name="tunnel_entrance_back">
+      <static>true</static>
+      <pose>30 0 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.15 3 2.5</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.15 3 2.5</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.7 0.6 0.5 1</ambient>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==================== TUNNEL OBSTACLES ==================== -->
+    <!-- Obstacle 1: Barrel near entrance -->
+    <model name="tunnel_barrel_1">
+      <static>true</static>
+      <pose>3 0 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.25</radius>
+              <length>0.8</length>
+            </cylinder>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.25</radius>
+              <length>0.8</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.8 0.2 0.2 1</ambient>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Obstacle 2: Box in middle-left -->
+    <model name="tunnel_box_1">
+      <static>true</static>
+      <pose>8 -0.8 0.35 0 0 0.2</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.6 0.6 0.7</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.6 0.6 0.7</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.2 0.6 0.8 1</ambient>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Obstacle 3: Cone-like cylinder near middle -->
+    <model name="tunnel_cone_1">
+      <static>true</static>
+      <pose>12 0.5 0.3 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.15</radius>
+              <length>0.6</length>
+            </cylinder>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.15</radius>
+              <length>0.6</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>1 0.5 0 1</ambient>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Obstacle 4: Small boxes cluster -->
+    <model name="tunnel_box_2">
+      <static>true</static>
+      <pose>16 0 0.2 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.4 0.4 0.4</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.4 0.4 0.4</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.8 0.3 1</ambient>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="tunnel_box_3">
+      <static>true</static>
+      <pose>16.5 0.4 0.2 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.4 0.4 0.4</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.4 0.4 0.4</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.8 0.3 1</ambient>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Obstacle 5: Barrel near exit -->
+    <model name="tunnel_barrel_2">
+      <static>true</static>
+      <pose>22 -0.5 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.25</radius>
+              <length>0.8</length>
+            </cylinder>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.25</radius>
+              <length>0.8</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.8 0.2 0.2 1</ambient>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Obstacle 6: Box near exit -->
+    <model name="tunnel_box_4">
+      <static>true</static>
+      <pose>26 0.7 0.25 0 0 -0.3</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.5 0.5 0.5</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.5 0.5 0.5</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.6 0.3 0.8 1</ambient>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==================== OUTDOOR OBSTACLES ==================== -->
+    <!-- Outdoor box 1 -->
+    <model name="outdoor_box_1">
+      <static>true</static>
+      <pose>-3 3 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>1 1 0.8</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>1 1 0.8</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.9 0.7 0.3 1</ambient>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Outdoor box 2 -->
+    <model name="outdoor_box_2">
+      <static>true</static>
+      <pose>-5 -4 0.5 0 0 0.5</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>1.2 1.2 1</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>1.2 1.2 1</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.3 0.7 0.6 1</ambient>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Outdoor pillar -->
+    <model name="outdoor_pillar_1">
+      <static>true</static>
+      <pose>35 2 0.6 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.3</radius>
+              <length>1.2</length>
+            </cylinder>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.3</radius>
+              <length>1.2</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.7 0.7 0.7 1</ambient>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Outdoor pillar 2 -->
+    <model name="outdoor_pillar_2">
+      <static>true</static>
+      <pose>38 -3 0.6 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.3</radius>
+              <length>1.2</length>
+            </cylinder>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.3</radius>
+              <length>1.2</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.7 0.7 0.7 1</ambient>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Outdoor long barrier -->
+    <model name="outdoor_barrier">
+      <static>true</static>
+      <pose>40 0 0.4 0 0 1.57</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>5 0.2 0.8</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>5 0.2 0.8</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.8 0.4 0.4 1</ambient>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>

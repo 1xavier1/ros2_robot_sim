@@ -12,12 +12,12 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     pkg_name = 'lio_sam2'
-    pkg_share = FindPackageShare(package=pkg_name).find(pkg_name)
+    FindPackageShare(package=pkg_name).find(pkg_name)
 
     # Config file
     config_file = os.path.join(
         get_package_share_directory('robot_description'),
-        '..', '..', 'config', 'lio_sam.yaml'
+        'config', 'lio_sam.yaml'
     )
 
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')

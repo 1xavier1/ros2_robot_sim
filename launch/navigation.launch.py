@@ -2,22 +2,20 @@
 """Launch file for Navigation2 with robot simulation"""
 
 import os
-from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, SetEnvironmentVariable
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
-from launch_ros.substitutions import FindPackageShare
+from ament_index_python.packages import get_package_share_directory
 
 
 def generate_launch_description():
-    pkg_share = FindPackageShare(package='robot_description').find('robot_description')
-    nav2_pkg_share = FindPackageShare(package='nav2_bringup').find('nav2_bringup')
+    pkg_share = get_package_share_directory('robot_description')
 
-    config_file = os.path.join(pkg_share, '..', '..', 'config', 'navigation.yaml')
+    config_file = os.path.join(pkg_share, 'config', 'navigation.yaml')
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
 
-    #rviz config path
+    # RViz config path
     rviz_config = os.path.join(pkg_share, 'rviz', 'nav2_config.rviz')
 
     nodes = [
@@ -103,9 +101,9 @@ def generate_launch_description():
 
         # Velocity smoother
         Node(
-            package='nav2_velocity_mappere',
-            executable='velocity_mappere',
-            name='velocity_mappere',
+            package='nav2_velocity_smoother',
+            executable='velocity_smoother',
+            name='velocity_smoother',
             output='screen',
             parameters=[config_file, {'use_sim_time': use_sim_time}],
             remappings=[

@@ -6,7 +6,7 @@ Panels:
       Expanded:
         - /Global Options1
       Splitter Ratio: 0.5
-    Tree Height: 506
+    Tree Height: 504
   - Class: rviz_common/Views
     Expanded:
       - /Current View1
@@ -60,12 +60,20 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
-        front_left_link:
+        front_left_steering_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        front_left_wheel:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        front_right_link:
+        front_right_steering_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        front_right_wheel:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -83,12 +91,20 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
-        rear_left_link:
+        rear_left_fixed_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        rear_left_wheel:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        rear_right_link:
+        rear_right_fixed_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        rear_right_wheel:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -110,9 +126,13 @@ Visualization Manager:
           Value: true
         base_link:
           Value: true
-        front_left_link:
+        front_left_steering_link:
           Value: true
-        front_right_link:
+        front_left_wheel:
+          Value: true
+        front_right_steering_link:
+          Value: true
+        front_right_wheel:
           Value: true
         gps_link:
           Value: true
@@ -122,9 +142,13 @@ Visualization Manager:
           Value: true
         odom:
           Value: true
-        rear_left_link:
+        rear_left_fixed_link:
           Value: true
-        rear_right_link:
+        rear_left_wheel:
+          Value: true
+        rear_right_fixed_link:
+          Value: true
+        rear_right_wheel:
           Value: true
       Marker Scale: 1
       Name: TF
@@ -135,20 +159,24 @@ Visualization Manager:
         odom:
           base_footprint:
             base_link:
+              front_left_steering_link:
+                front_left_wheel:
+                  {}
+              front_right_steering_link:
+                front_right_wheel:
+                  {}
+              rear_left_fixed_link:
+                rear_left_wheel:
+                  {}
+              rear_right_fixed_link:
+                rear_right_wheel:
+                  {}
               gps_link:
                 {}
               imu_link:
                 {}
               laser_link:
                 {}
-              rear_left_link:
-                {}
-              rear_right_link:
-                {}
-            front_left_link:
-              {}
-            front_right_link:
-              {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -159,7 +187,7 @@ Visualization Manager:
         Value: true
       Axis: Z
       Channel Name: intensity
-      Class: rviz_default_plugins/LaserScan
+      Class: rviz_default_plugins/PointCloud2
       Color: 255; 255; 255
       Color Transformer: Intensity
       Decay Time: 0
@@ -169,7 +197,7 @@ Visualization Manager:
       Max Intensity: 0
       Min Color: 0; 0; 0
       Min Intensity: 0
-      Name: LaserScan
+      Name: PointCloud2
       Position Transformer: XYZ
       Selectable: true
       Size (Pixels): 3
@@ -181,7 +209,7 @@ Visualization Manager:
         Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /robot/scan
+        Value: /robot/velodyne_points
       Use Fixed Frame: true
       Use rainbow: true
       Value: true
@@ -203,35 +231,35 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 11.68792724609375
+      Distance: 3.542355537414551
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0
-        Y: 0
-        Z: 0
+        X: -5.019343852996826
+        Y: -1.1937050819396973
+        Z: 1.5742954015731812
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.060397982597351
+      Pitch: 0.794796884059906
       Target Frame: odom
       Value: Orbit (rviz)
-      Yaw: 6.2585835456848145
+      Yaw: 3.203580856323242
     Saved: ~
 Window Geometry:
   Displays:
     collapsed: false
-  Height: 1148
+  Height: 1144
   Hide Left Dock: false
   Hide Right Dock: false
-  QMainWindow State: 000000ff00000000fd0000000100000000000004dd00000426fc0200000002fb000000100044006900730070006c006100790073010000003b00000283000000c700fffffffb0000000a0056006900650077007301000002c40000019d000000a000ffffff000007020000042600000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd00000001000000000000016a00000422fc0200000002fb000000100044006900730070006c006100790073010000003b00000281000000c700fffffffb0000000a0056006900650077007301000002c20000019b000000a000ffffff0000050c0000042200000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Views:
     collapsed: false
-  Width: 3045
+  Width: 1660
   X: 70
   Y: 27

@@ -15,6 +15,7 @@
   <depend>joint_state_publisher</depend>
   <depend>xacro</depend>
   <depend>gazebo_ros</depend>
+  <depend>gazebo_plugins</depend>
   <depend>gazebo_ros_pkgs</depend>
   <depend>nav2_bringup</depend>
   <depend>nav2_controller</depend>

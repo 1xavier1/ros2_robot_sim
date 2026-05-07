@@ -2,21 +2,73 @@
 """Launch file for Navigation2 with robot simulation"""
 
 import os
+from ament_index_python.packages import (
+    PackageNotFoundError,
+    get_package_share_directory,
+)
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, SetEnvironmentVariable
+from launch.actions import DeclareLaunchArgument, LogInfo, SetEnvironmentVariable
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
-from ament_index_python.packages import get_package_share_directory
+
+
+REQUIRED_NAV2_PACKAGES = [
+    'nav2_lifecycle_manager',
+    'nav2_controller',
+    'nav2_planner',
+    'nav2_smoother',
+    'nav2_behaviors',
+    'nav2_bt_navigator',
+    'nav2_waypoint_follower',
+]
+
+OPTIONAL_NAV2_PACKAGES = [
+    'nav2_velocity_smoother',
+]
+
+
+def find_missing_packages(package_names):
+    missing_packages = []
+    for package_name in package_names:
+        try:
+            get_package_share_directory(package_name)
+        except PackageNotFoundError:
+            missing_packages.append(package_name)
+    return missing_packages
 
 
 def generate_launch_description():
     pkg_share = get_package_share_directory('robot_description')
+    missing_required = find_missing_packages(REQUIRED_NAV2_PACKAGES)
 
     config_file = os.path.join(pkg_share, 'config', 'navigation.yaml')
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
 
-    # RViz config path
-    rviz_config = os.path.join(pkg_share, 'rviz', 'nav2_config.rviz')
+    launch_actions = [
+        SetEnvironmentVariable('RCUTILS_CONSOLE_OUTPUT_FORMAT', '[{name}]: {message}'),
+        DeclareLaunchArgument('use_sim_time', default_value='true'),
+    ]
+
+    if missing_required:
+        missing_text = ', '.join(missing_required)
+        launch_actions.append(LogInfo(
+            msg=(
+                'Navigation2 precheck failed: missing required packages: '
+                f'{missing_text}. Install ros-humble-navigation2 and '
+                'ros-humble-nav2-bringup, then rerun this launch file.'
+            )
+        ))
+        return LaunchDescription(launch_actions)
+
+    missing_optional = find_missing_packages(OPTIONAL_NAV2_PACKAGES)
+    node_names = [
+        'controller_server',
+        'planner_server',
+        'smoother_server',
+        'behavior_server',
+        'bt_navigator',
+        'waypoint_follower',
+    ]
 
     nodes = [
         # Lifecycle manager for navigation
@@ -28,14 +80,7 @@ def generate_launch_description():
             parameters=[{
                 'use_sim_time': use_sim_time,
                 'autostart': True,
-                'node_names': [
-                    'controller_server',
-                    'planner_server',
-                    'smoother_server',
-                    'behavior_server',
-                    'bt_navigator',
-                    'waypoint_follower',
-                ],
+                'node_names': node_names,
             }],
         ),
 
@@ -99,22 +144,30 @@ def generate_launch_description():
             parameters=[config_file, {'use_sim_time': use_sim_time}],
         ),
 
-        # Velocity smoother
-        Node(
-            package='nav2_velocity_smoother',
-            executable='velocity_smoother',
-            name='velocity_smoother',
-            output='screen',
-            parameters=[config_file, {'use_sim_time': use_sim_time}],
-            remappings=[
-                ('/cmd_vel_raw', '/robot/cmd_vel'),
-                ('/cmd_vel_smooth', '/robot/cmd_vel'),
-            ],
-        ),
     ]
 
-    return LaunchDescription([
-        SetEnvironmentVariable('RCUTILS_CONSOLE_OUTPUT_FORMAT', '[{name}]: {message}'),
-        DeclareLaunchArgument('use_sim_time', default_value='true'),
-        *nodes,
-    ])
+    if not missing_optional:
+        nodes.append(
+            # Velocity smoother
+            Node(
+                package='nav2_velocity_smoother',
+                executable='velocity_smoother',
+                name='velocity_smoother',
+                output='screen',
+                parameters=[config_file, {'use_sim_time': use_sim_time}],
+                remappings=[
+                    ('/cmd_vel_raw', '/robot/cmd_vel'),
+                    ('/cmd_vel_smooth', '/robot/cmd_vel'),
+                ],
+            )
+        )
+    else:
+        nodes.append(LogInfo(
+            msg=(
+                'Navigation2 optional package missing, skipping velocity '
+                f'smoother: {", ".join(missing_optional)}'
+            )
+        ))
+
+    launch_actions.extend(nodes)
+    return LaunchDescription(launch_actions)

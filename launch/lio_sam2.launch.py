@@ -2,17 +2,34 @@
 """Launch file for LIO-SAM2 with robot simulation"""
 
 import os
-from ament_index_python.packages import get_package_share_directory
+from ament_index_python.packages import (
+    PackageNotFoundError,
+    get_package_share_directory,
+)
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, SetEnvironmentVariable
+from launch.actions import DeclareLaunchArgument, LogInfo, SetEnvironmentVariable
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
-from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
     pkg_name = 'lio_sam2'
-    FindPackageShare(package=pkg_name).find(pkg_name)
+    launch_actions = [
+        SetEnvironmentVariable('RCUTILS_CONSOLE_OUTPUT_FORMAT', '[{name}]: {message}'),
+        DeclareLaunchArgument('use_sim_time', default_value='true'),
+    ]
+
+    try:
+        get_package_share_directory(pkg_name)
+    except PackageNotFoundError:
+        launch_actions.append(LogInfo(
+            msg=(
+                'LIO-SAM2 precheck failed: missing package lio_sam2. '
+                'Install or build lio_sam2 in this workspace, then rerun '
+                'this launch file.'
+            )
+        ))
+        return LaunchDescription(launch_actions)
 
     # Config file
     config_file = os.path.join(
@@ -47,18 +64,7 @@ def generate_launch_description():
             name='map_to_odom',
             arguments=['0', '0', '0', '0', '0', '0', 'map', 'odom'],
         ),
-
-        # Transform publisher (odom -> base_footprint)
-        Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            name='odom_to_base',
-            arguments=['0', '0', '0', '0', '0', '0', 'odom', 'base_footprint'],
-        ),
     ]
 
-    return LaunchDescription([
-        SetEnvironmentVariable('RCUTILS_CONSOLE_OUTPUT_FORMAT', '[{name}]: {message}'),
-        DeclareLaunchArgument('use_sim_time', default_value='true'),
-        *nodes,
-    ])
+    launch_actions.extend(nodes)
+    return LaunchDescription(launch_actions)

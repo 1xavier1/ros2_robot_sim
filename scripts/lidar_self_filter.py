@@ -4,6 +4,7 @@
 from math import cos, sin, sqrt
 from pathlib import Path
 
+from ament_index_python.packages import get_package_share_directory
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import PointCloud2
@@ -11,9 +12,7 @@ from sensor_msgs_py import point_cloud2
 import yaml
 
 
-WORKSPACE_DIR = Path(__file__).resolve().parents[1]
-VEHICLE_GEOMETRY_PATH = WORKSPACE_DIR / "config" / "vehicle_geometry.yaml"
-SENSOR_MOUNT_PATH = WORKSPACE_DIR / "config" / "sensor_mount.yaml"
+CONFIG_DIR = Path(get_package_share_directory("robot_description")) / "config"
 
 RAW_TOPIC = "/sensing/lidar/points_raw"
 FILTERED_TOPIC = "/sensing/lidar/points_filtered"
@@ -55,8 +54,8 @@ def inside_box(point, box_min, box_max):
 class LidarSelfFilter(Node):
     def __init__(self):
         super().__init__("lidar_self_filter")
-        vehicle_geometry = load_yaml(VEHICLE_GEOMETRY_PATH)
-        sensor_mount = load_yaml(SENSOR_MOUNT_PATH)
+        vehicle_geometry = load_yaml(CONFIG_DIR / "vehicle_geometry.yaml")
+        sensor_mount = load_yaml(CONFIG_DIR / "sensor_mount.yaml")
 
         self_filter = vehicle_geometry["vehicle_geometry"]["self_filter"]
         lidar_mount = sensor_mount["lidar"]

@@ -269,6 +269,9 @@ def test_lidar_self_filter_script_filters_vehicle_box_and_ranges():
     assert "PointCloud2" in script
     assert "vehicle_geometry.yaml" in script
     assert "sensor_mount.yaml" in script
+    assert "get_package_share_directory" in script
+    assert "CONFIG_DIR" in script
+    assert 'parents[1] / "config"' not in script
     assert "/sensing/lidar/points_raw" in script
     assert "/sensing/lidar/points_filtered" in script
     assert "box_min" in script
@@ -279,6 +282,7 @@ def test_lidar_self_filter_script_filters_vehicle_box_and_ranges():
     assert "create_cloud" in script
     assert "<depend>sensor_msgs_py</depend>" in package
     assert "<exec_depend>python3-yaml</exec_depend>" in package
+    assert "<exec_depend>ament_index_python</exec_depend>" in package
 
 
 def test_navigation_config_respects_ackermann_constraints():

@@ -51,9 +51,9 @@ def generate_launch_description():
                 'config_file': config_file,
             }],
             remappings=[
-                ('/points_raw', '/robot/velodyne_points'),
-                ('/imu_raw', '/robot/imu/data'),
-                ('/odom_encoded', '/robot/odom'),
+                ('/points_raw', '/sensing/lidar/points'),
+                ('/imu_raw', '/sensing/imu/data'),
+                ('/odom_encoded', '/odometry/filtered'),
             ],
         ),
 

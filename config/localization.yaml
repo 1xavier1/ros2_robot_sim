@@ -24,7 +24,15 @@ ekf_filter_node:
     odom0_relative: false
     odom0_queue_size: 50
 
-    imu0: /robot/imu/data
+    gps_quality_gate:
+      topic: /sensing/gps/fix
+      mode: weak_constraint
+      max_acceptable_covariance: 25.0
+      max_position_jump: 3.0
+      dropout_timeout: 2.0
+      recovery_blend_time: 5.0
+
+    imu0: /sensing/imu/data
     imu0_config: [false, false, false,
                   false, false, true,
                   false, false, false,

@@ -1,5 +1,22 @@
 # ROS2 阿克曼四驱机器人仿真系统 - 项目进度
 
+## 2026-05-20 当前基线
+
+- 已切换到统一 `libackermann_drive_controller.so`，外部控制接口保持 `/robot/cmd_vel`。
+- 已验证 `/robot/odom`、`/robot/ground_truth/odom`、`/tf`、`/robot/imu/data`、`/robot/velodyne_points`、`/robot/wheel_encoder/rear_average` 可发布。
+- `/robot/ground_truth/odom` 仅用于仿真评估，不参与定位和导航闭环。
+- `scripts/verify_runtime_topics.sh` 可验收关键运行话题。
+- `localization.launch.py` 可启动 `robot_localization`，并输出 `/odometry/filtered`。
+- `navigation.launch.py` 已有 Nav2 缺包预检查；当前环境缺 Nav2 必需包时应清晰提示。
+- `lio_sam2.launch.py` 已有 LIO-SAM2 缺包预检查；建图链路尚未跑通。
+
+下一阶段目标：
+
+1. 建立 `/sensing/...` 与 `/control/cmd_vel` 统一接口。
+2. 使用 LIO-SAM2 做仿真建图。
+3. 使用 LiDAR + IMU + 轮速 + GPS 弱约束做可降级定位。
+4. 先完成已建图 Nav2 导航，再扩展边建图边导航。
+
 ## 最新运行教程
 
 ### 1. 启动仿真环境

@@ -1,14 +1,8 @@
-/**
- * Wheel Encoder Gazebo Plugin
- * Publishes wheel encoder data for robot odometry and localization
- */
-
 #include <gazebo/gazebo.hh>
 #include <gazebo/physics/physics.hh>
-#include <gazebo/transport/transport.hh>
-#include <gazebo/msgs/msgs.hh>
-#include <ros/ros.h>
-#include <std_msgs/Float64.h>
+#include <gazebo_ros/node.hpp>
+#include <rclcpp/rclcpp.hpp>
+#include <std_msgs/msg/float64.hpp>
 
 namespace gazebo
 {
@@ -19,46 +13,60 @@ namespace gazebo
     {
       this->model = _model;
       this->world = _model->GetWorld();
+      this->ros_node = gazebo_ros::Node::Get(_sdf);
 
-      // Get joint name
-      std::string joint_name = "rear_left_wheel_joint";
+      std::string joint_name = "rear_left_joint";
       if (_sdf->HasElement("joint"))
         joint_name = _sdf->Get<std::string>("joint");
 
       this->joint = _model->GetJoint(joint_name);
       if (!this->joint)
       {
-        ROS_ERROR("Wheel encoder: joint not found: %s", joint_name.c_str());
+        RCLCPP_ERROR(this->ros_node->get_logger(),
+                     "Wheel encoder joint not found: %s", joint_name.c_str());
         return;
       }
 
-      // Get parameters
+      if (_sdf->HasElement("right_joint"))
+      {
+        std::string right_joint_name = _sdf->Get<std::string>("right_joint");
+        this->right_joint = _model->GetJoint(right_joint_name);
+        if (!this->right_joint)
+        {
+          RCLCPP_ERROR(this->ros_node->get_logger(),
+                       "Wheel encoder right_joint not found: %s",
+                       right_joint_name.c_str());
+          return;
+        }
+      }
+
       if (_sdf->HasElement("update_rate"))
         this->update_rate = _sdf->Get<double>("update_rate");
-      if (_sdf->HasElement("encoder_resolution"))
-        this->encoder_resolution = _sdf->Get<int>("encoder_resolution");
+      if (_sdf->HasElement("wheel_radius"))
+        this->wheel_radius = _sdf->Get<double>("wheel_radius");
+      if (_sdf->HasElement("output_type"))
+        this->output_type = _sdf->Get<std::string>("output_type");
 
-      // ROS node
-      if (!ros::isInitialized())
+      std::string topic_name = "/robot/wheel_encoder/" + joint_name;
+      if (_sdf->HasElement("topic"))
+        topic_name = _sdf->Get<std::string>("topic");
+
+      this->publisher =
+        this->ros_node->create_publisher<std_msgs::msg::Float64>(topic_name, 10);
+
+      if (this->update_rate <= 0.0)
       {
-        ROS_FATAL("ROS not initialized");
+        RCLCPP_ERROR(this->ros_node->get_logger(),
+                     "Wheel encoder update_rate must be positive");
         return;
       }
 
-      std::string topic_name = "/robot/wheel_encoder/" + joint_name;
-      this->pub = ros::nodeHandle().advertise<std_msgs::Float64>(topic_name, 10);
-
-      // Create transport node
-      this->node = transport::NodePtr(new transport::Node());
-      this->node->Init();
-
-      // Listen to physics update
       this->update_connection = event::Events::ConnectWorldUpdateBegin(
           std::bind(&WheelEncoderPlugin::OnUpdate, this));
 
-      // Initialize encoder
-      this->prev_angle = this->joint->Position(0);
-      this->cumulative_angle = 0.0;
+      RCLCPP_INFO(this->ros_node->get_logger(),
+                  "Publishing wheel encoder %s from %s",
+                  topic_name.c_str(), joint_name.c_str());
     }
 
     void OnUpdate()
@@ -69,28 +77,16 @@ namespace gazebo
       if (dt < 1.0 / this->update_rate)
         return;
 
-      // Get current joint position
-      double current_angle = this->joint->Position(0);
+      double value = this->joint->GetVelocity(0);
+      if (this->right_joint)
+        value = 0.5 * (value + this->right_joint->GetVelocity(0));
 
-      // Calculate angle difference (handle wrap-around)
-      double delta = current_angle - this->prev_angle;
-      if (delta > M_PI)
-        delta -= 2 * M_PI;
-      if (delta < -M_PI)
-        delta += 2 * M_PI;
+      if (this->output_type == "linear_velocity")
+        value *= this->wheel_radius;
 
-      this->cumulative_angle += delta;
-      this->prev_angle = current_angle;
-
-      // Convert to encoder ticks
-      double encoder_value = fmod(this->cumulative_angle * this->encoder_resolution / (2 * M_PI), this->encoder_resolution);
-      if (encoder_value < 0)
-        encoder_value += this->encoder_resolution;
-
-      // Publish
-      std_msgs::Float64 msg;
-      msg.data = encoder_value;
-      this->pub.publish(msg);
+      std_msgs::msg::Float64 msg;
+      msg.data = value;
+      this->publisher->publish(msg);
 
       this->last_update_time = cur_time;
     }
@@ -98,16 +94,16 @@ namespace gazebo
   private:
     physics::ModelPtr model;
     physics::JointPtr joint;
+    physics::JointPtr right_joint;
     physics::WorldPtr world;
-    transport::NodePtr node;
     event::ConnectionPtr update_connection;
+    gazebo_ros::Node::SharedPtr ros_node;
+    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr publisher;
 
-    ros::Publisher pub;
     common::Time last_update_time;
-    double prev_angle;
-    double cumulative_angle;
     double update_rate = 50.0;
-    int encoder_resolution = 360;
+    double wheel_radius = 0.07;
+    std::string output_type = "angular_velocity";
   };
 
   GZ_REGISTER_MODEL_PLUGIN(WheelEncoderPlugin)

@@ -51,10 +51,13 @@
   </link>
 
   <!-- ==================== Front Steering Joints ==================== -->
-  <joint name="left_steering_joint" type="fixed">
+  <joint name="left_steering_joint" type="revolute">
     <parent link="base_link"/>
     <child link="left_steering_link"/>
     <origin xyz="${wheelbase/2} ${track_width/2} 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.6" upper="0.6" effort="100" velocity="10"/>
+    <dynamics damping="0.1" friction="0.1"/>
   </joint>
   <link name="left_steering_link">
     <inertial>
@@ -63,10 +66,13 @@
     </inertial>
   </link>
 
-  <joint name="right_steering_joint" type="fixed">
+  <joint name="right_steering_joint" type="revolute">
     <parent link="base_link"/>
     <child link="right_steering_link"/>
     <origin xyz="${wheelbase/2} ${-track_width/2} 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.6" upper="0.6" effort="100" velocity="10"/>
+    <dynamics damping="0.1" friction="0.1"/>
   </joint>
   <link name="right_steering_link">
     <inertial>
@@ -121,7 +127,7 @@
     <child link="front_left_wheel"/>
     <origin xyz="0 0 ${-wheel_radius + 0.02}" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
-    <dynamics damping="0.05" friction="5.0"/>
+    <dynamics damping="0.01" friction="0.01"/>
   </joint>
   <link name="front_left_wheel">
     <inertial>
@@ -159,7 +165,7 @@
     <child link="front_right_wheel"/>
     <origin xyz="0 0 ${-wheel_radius + 0.02}" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
-    <dynamics damping="0.05" friction="5.0"/>
+    <dynamics damping="0.01" friction="0.01"/>
   </joint>
   <link name="front_right_wheel">
     <inertial>
@@ -197,7 +203,7 @@
     <child link="rear_left_wheel"/>
     <origin xyz="0 0 ${-wheel_radius + 0.02}" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
-    <dynamics damping="0.05" friction="5.0"/>
+    <dynamics damping="0.01" friction="0.01"/>
   </joint>
   <link name="rear_left_wheel">
     <inertial>
@@ -235,7 +241,7 @@
     <child link="rear_right_wheel"/>
     <origin xyz="0 0 ${-wheel_radius + 0.02}" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
-    <dynamics damping="0.05" friction="5.0"/>
+    <dynamics damping="0.01" friction="0.01"/>
   </joint>
   <link name="rear_right_wheel">
     <inertial>
@@ -374,29 +380,97 @@
     </sensor>
   </gazebo>
 
-  <!-- ==================== Drive Plugin ==================== -->
+  <!-- ==================== Ackermann Drive Controller ==================== -->
   <gazebo>
-    <plugin name="gazebo_ros_diff_drive" filename="libgazebo_ros_diff_drive.so">
+    <plugin name="ackermann_drive_controller" filename="libackermann_drive_controller.so">
       <ros>
         <namespace>/robot</namespace>
       </ros>
+      <cmd_vel_topic>cmd_vel</cmd_vel_topic>
+      <odom_topic>odom</odom_topic>
+      <ground_truth_odom_topic>ground_truth/odom</ground_truth_odom_topic>
+      <odom_frame>odom</odom_frame>
+      <base_frame>base_footprint</base_frame>
+
+      <left_steering_joint>left_steering_joint</left_steering_joint>
+      <right_steering_joint>right_steering_joint</right_steering_joint>
+      <rear_left_wheel_joint>rear_left_joint</rear_left_wheel_joint>
+      <rear_right_wheel_joint>rear_right_joint</rear_right_wheel_joint>
+
+      <wheelbase>${wheelbase}</wheelbase>
+      <track_width>${track_width}</track_width>
+      <wheel_radius>${wheel_radius}</wheel_radius>
+      <max_steering_angle>0.5236</max_steering_angle>
+      <cmd_timeout>0.5</cmd_timeout>
       <update_rate>50.0</update_rate>
+      <steering_p>50.0</steering_p>
+      <steering_i>0.0</steering_i>
+      <steering_d>5.0</steering_d>
+      <max_wheel_torque>50.0</max_wheel_torque>
+    </plugin>
+  </gazebo>
 
-      <left_joint>rear_left_joint</left_joint>
+  <!-- ==================== Joint State Publisher ==================== -->
+  <gazebo>
+    <plugin name="gazebo_ros_joint_state_publisher" filename="libgazebo_ros_joint_state_publisher.so">
+      <ros>
+        <remapping>joint_states:=/joint_states</remapping>
+      </ros>
+      <update_rate>50.0</update_rate>
+      <joint_name>left_steering_joint</joint_name>
+      <joint_name>right_steering_joint</joint_name>
+      <joint_name>steering_wheel_joint</joint_name>
+      <joint_name>front_left_joint</joint_name>
+      <joint_name>front_right_joint</joint_name>
+      <joint_name>rear_left_joint</joint_name>
+      <joint_name>rear_right_joint</joint_name>
+    </plugin>
+  </gazebo>
+
+  <gazebo>
+    <plugin name="wheel_encoder_front_left" filename="libwheel_encoder.so">
+      <joint>front_left_joint</joint>
+      <topic>/robot/wheel_encoder/front_left</topic>
+      <update_rate>50.0</update_rate>
+      <output_type>angular_velocity</output_type>
+    </plugin>
+  </gazebo>
+
+  <gazebo>
+    <plugin name="wheel_encoder_front_right" filename="libwheel_encoder.so">
+      <joint>front_right_joint</joint>
+      <topic>/robot/wheel_encoder/front_right</topic>
+      <update_rate>50.0</update_rate>
+      <output_type>angular_velocity</output_type>
+    </plugin>
+  </gazebo>
+
+  <gazebo>
+    <plugin name="wheel_encoder_rear_left" filename="libwheel_encoder.so">
+      <joint>rear_left_joint</joint>
+      <topic>/robot/wheel_encoder/rear_left</topic>
+      <update_rate>50.0</update_rate>
+      <output_type>angular_velocity</output_type>
+    </plugin>
+  </gazebo>
+
+  <gazebo>
+    <plugin name="wheel_encoder_rear_right" filename="libwheel_encoder.so">
+      <joint>rear_right_joint</joint>
+      <topic>/robot/wheel_encoder/rear_right</topic>
+      <update_rate>50.0</update_rate>
+      <output_type>angular_velocity</output_type>
+    </plugin>
+  </gazebo>
+
+  <gazebo>
+    <plugin name="wheel_encoder_rear_average" filename="libwheel_encoder.so">
+      <joint>rear_left_joint</joint>
       <right_joint>rear_right_joint</right_joint>
-      <wheel_separation>${track_width}</wheel_separation>
-      <wheel_diameter>${wheel_diameter}</wheel_diameter>
-      <max_wheel_torque>50</max_wheel_torque>
-      <max_wheel_acceleration>2.0</max_wheel_acceleration>
-      <command_topic>cmd_vel</command_topic>
-
-      <!-- Publishers -->
-      <publish_odom>true</publish_odom>
-      <publish_odom_tf>true</publish_odom_tf>
-      <publish_wheel_tf>false</publish_wheel_tf>
-      <odometry_topic>odom</odometry_topic>
-      <odometry_frame>odom</odometry_frame>
-      <robot_base_frame>base_footprint</robot_base_frame>
+      <topic>/robot/wheel_encoder/rear_average</topic>
+      <update_rate>50.0</update_rate>
+      <wheel_radius>${wheel_radius}</wheel_radius>
+      <output_type>linear_velocity</output_type>
     </plugin>
   </gazebo>
 

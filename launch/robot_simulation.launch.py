@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""Launch file for robot simulation with Gazebo
-   4WD Skid Steer Vehicle
-"""
+"""Launch file for robot simulation with Gazebo."""
 
 import os
 from launch import LaunchDescription
@@ -24,19 +22,26 @@ def generate_launch_description():
 
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     use_rviz = LaunchConfiguration('rviz', default='true')
+    sensing_bridge = LaunchConfiguration('sensing_bridge', default='true')
 
-    # Robot spawn position
     spawn_x = LaunchConfiguration('x', default='-5.0')
     spawn_y = LaunchConfiguration('y', default='0.0')
     spawn_z = LaunchConfiguration('z', default='0.07')
 
-    # Set LD_LIBRARY_PATH for velodyne plugin dependencies
     ld_lib_path = SetEnvironmentVariable(
         name='LD_LIBRARY_PATH',
         value='/opt/ros/humble/lib:' + os.environ.get('LD_LIBRARY_PATH', '')
     )
 
-    # Process xacro
+    # Ensure Gazebo finds our model plugins (C++ libs are in lib/)
+    our_lib = os.path.realpath(
+        os.path.join(robot_description_share, '..', '..', 'lib'))
+    existing_gazebo_path = os.environ.get('GAZEBO_PLUGIN_PATH', '')
+    if existing_gazebo_path:
+        os.environ['GAZEBO_PLUGIN_PATH'] = our_lib + ':' + existing_gazebo_path
+    else:
+        os.environ['GAZEBO_PLUGIN_PATH'] = our_lib
+
     doc = xacro.process_file(urdf_file)
     robot_desc_xml = doc.toxml()
 
@@ -50,16 +55,6 @@ def generate_launch_description():
                 'use_sim_time': use_sim_time,
                 'robot_description': robot_desc_xml,
                 'publish_frequency': 50.0,
-            }],
-        ),
-        Node(
-            package='joint_state_publisher',
-            executable='joint_state_publisher',
-            name='joint_state_publisher',
-            output='screen',
-            parameters=[{
-                'use_sim_time': use_sim_time,
-                'rate': 50,
             }],
         ),
         Node(
@@ -98,6 +93,16 @@ def generate_launch_description():
         output='screen',
     )
 
+    sensing_bridge_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(robot_description_share, 'launch', 'sensing_bridge.launch.py')
+        ),
+        launch_arguments={
+            'use_sim_time': use_sim_time,
+        }.items(),
+        condition=IfCondition(LaunchConfiguration('sensing_bridge')),
+    )
+
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='true'),
         DeclareLaunchArgument('x', default_value='-5.0',
@@ -108,8 +113,11 @@ def generate_launch_description():
             description='Robot spawn Z position'),
         DeclareLaunchArgument('rviz', default_value='true',
             description='Start RViz with the simulation'),
+        DeclareLaunchArgument('sensing_bridge', default_value='true',
+            description='Relay simulation topics to /sensing interfaces'),
         ld_lib_path,
         gazebo,
         TimerAction(period=2.0, actions=nodes),
         TimerAction(period=4.0, actions=[spawn_robot]),
+        TimerAction(period=5.0, actions=[sensing_bridge_launch]),
     ])

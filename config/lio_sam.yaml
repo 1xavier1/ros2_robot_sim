@@ -10,9 +10,12 @@ robot:
 
 # Sensor Topics
 sensor:
-  imu: "/robot/imu/data"
-  velodyne: "/robot/velodyne_points"
+  imu: "/sensing/imu/data"
+  velodyne: "/sensing/lidar/points"
+  gps: "/sensing/gps/fix"
   wheel_encoder:
+    # Recommended primary Ackermann wheel-speed input: rear axle average linear velocity (m/s).
+    rear_average: "/sensing/wheel/speed"
     front_left: "/robot/wheel_encoder/front_left"
     front_right: "/robot/wheel_encoder/front_right"
     rear_left: "/robot/wheel_encoder/rear_left"
@@ -30,7 +33,7 @@ pointCloud:
 
 # IMU Parameters
 imu:
-  imu_topic: "/robot/imu/data"
+  imu_topic: "/sensing/imu/data"
   imu_rotation: 0.0  # rotation from IMU to base_link (pitch)
   acc_cov: 0.008
   gyr_cov: 0.002

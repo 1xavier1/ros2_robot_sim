@@ -144,7 +144,7 @@ planner_server:
       maximum_planning_time: 5.0
       smooth_path: true
       get_lookahead_dist: -1.0
-      min_turning_radius: 0.20
+      min_turning_radius: 0.78
       w_reverse_cost: 2.5
       w_oscillation_reset_dist: 0.05
       oscillation_reset_angle: 0.2

@@ -10,13 +10,15 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
   <buildtool_depend>ament_python</buildtool_depend>
 
-  <depend>rclcpp</depend>
-  <depend>robot_state_publisher</depend>
-  <depend>joint_state_publisher</depend>
-  <depend>xacro</depend>
+  <depend>gazebo_dev</depend>
   <depend>gazebo_ros</depend>
   <depend>gazebo_plugins</depend>
   <depend>gazebo_ros_pkgs</depend>
+  <depend>rclcpp</depend>
+  <depend>rclpy</depend>
+  <depend>robot_state_publisher</depend>
+  <depend>joint_state_publisher</depend>
+  <depend>xacro</depend>
   <depend>nav2_bringup</depend>
   <depend>nav2_controller</depend>
   <depend>nav2_planner</depend>
@@ -32,6 +34,7 @@
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
+  <test_depend>ament_cmake_pytest</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

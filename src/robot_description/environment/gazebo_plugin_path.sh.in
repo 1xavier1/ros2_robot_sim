@@ -1,0 +1,2 @@
+# generated from robot_description package
+ament_prepend_unique_value GAZEBO_PLUGIN_PATH "$COLCON_CURRENT_PREFIX/lib"

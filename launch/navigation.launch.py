@@ -92,7 +92,8 @@ def generate_launch_description():
             output='screen',
             parameters=[config_file, {'use_sim_time': use_sim_time}],
             remappings=[
-                ('/cmd_vel', '/robot/cmd_vel'),
+                ('/cmd_vel', '/control/cmd_vel'),
+                ('/control/cmd_vel', '/robot/cmd_vel'),
             ],
         ),
 
@@ -156,7 +157,7 @@ def generate_launch_description():
                 output='screen',
                 parameters=[config_file, {'use_sim_time': use_sim_time}],
                 remappings=[
-                    ('/cmd_vel_raw', '/robot/cmd_vel'),
+                    ('/cmd_vel_raw', '/control/cmd_vel'),
                     ('/cmd_vel_smooth', '/robot/cmd_vel'),
                 ],
             )

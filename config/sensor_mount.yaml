@@ -1,0 +1,46 @@
+lidar:
+  # parent_frame: frame that LiDAR extrinsics are relative to.
+  parent_frame: base_link
+
+  # frame: LiDAR point cloud frame_id.
+  frame: laser_link
+
+  # xyz: LiDAR origin relative to parent_frame, unit m.
+  # X forward positive, Y left positive, Z upward positive.
+  xyz: [0.0, 0.0, 0.18]
+
+  # rpy: LiDAR roll, pitch, yaw relative to parent_frame, unit rad.
+  # Right-hand rule: roll about X, pitch about Y, yaw about Z.
+  rpy: [0.0, 0.524, 0.0]
+
+  # min_range / max_range: accepted LiDAR point distance, unit m.
+  min_range: 0.1
+  max_range: 100.0
+
+  # horizontal_fov / vertical_fov: expected useful field of view, unit rad.
+  # Used by simulation sanity checks and later real LiDAR validation.
+  horizontal_fov: 6.28318
+  vertical_fov: 0.5236
+
+imu:
+  # parent_frame: frame that IMU extrinsics are relative to.
+  parent_frame: base_link
+
+  # frame: IMU message frame_id.
+  frame: imu_link
+
+  # xyz: IMU origin relative to parent_frame, unit m.
+  xyz: [0.0, 0.0, 0.08]
+
+  # rpy: IMU roll, pitch, yaw relative to parent_frame, unit rad.
+  rpy: [0.0, 0.0, 0.0]
+
+gps:
+  # parent_frame: frame that GPS antenna position is relative to.
+  parent_frame: base_link
+
+  # frame: GPS fix frame_id.
+  frame: gps_link
+
+  # xyz: GPS antenna origin relative to parent_frame, unit m.
+  xyz: [0.0, 0.0, 0.3]

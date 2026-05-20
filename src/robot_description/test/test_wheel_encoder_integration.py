@@ -356,3 +356,19 @@ def test_vehicle_geometry_config_documents_units_and_self_filter():
     assert "unit m" in config_text
     assert "base_link" in config_text
     assert "X forward positive" in config_text
+
+
+def test_sensor_mount_config_documents_lidar_extrinsics():
+    config = read(WORKSPACE_DIR / "config" / "sensor_mount.yaml")
+
+    assert "parent_frame: base_link" in config
+    assert "frame: laser_link" in config
+    assert "xyz: [0.0, 0.0, 0.18]" in config
+    assert "rpy: [0.0, 0.524, 0.0]" in config
+    assert "min_range: 0.1" in config
+    assert "max_range: 100.0" in config
+    assert "horizontal_fov: 6.28318" in config
+    assert "vertical_fov: 0.5236" in config
+    assert "unit rad" in config
+    assert "Right-hand rule" in config
+    assert "X forward positive" in config

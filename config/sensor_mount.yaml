@@ -7,7 +7,7 @@ lidar:
 
   # xyz: LiDAR origin relative to parent_frame, unit m.
   # X forward positive, Y left positive, Z upward positive.
-  xyz: [0.0, 0.0, 0.18]
+  xyz: [0.0, 0.0, 0.25]
 
   # rpy: LiDAR roll, pitch, yaw relative to parent_frame, unit rad.
   # Right-hand rule: roll about X, pitch about Y, yaw about Z.

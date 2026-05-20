@@ -361,15 +361,28 @@ def test_vehicle_geometry_config_documents_units_and_self_filter():
 def test_sensor_mount_config_documents_lidar_extrinsics():
     config_text = read(WORKSPACE_DIR / "config" / "sensor_mount.yaml")
     config = yaml.safe_load(config_text)
+    urdf_root = ET.fromstring(read(PACKAGE_DIR / "urdf" / "robot_base.urdf.xacro"))
 
     assert config["lidar"]["parent_frame"] == "base_link"
     assert config["lidar"]["frame"] == "laser_link"
-    assert config["lidar"]["xyz"] == [0.0, 0.0, 0.18]
+    assert config["lidar"]["xyz"] == [0.0, 0.0, 0.25]
     assert config["lidar"]["rpy"] == [0.0, 0.524, 0.0]
     assert config["lidar"]["min_range"] == 0.1
     assert config["lidar"]["max_range"] == 100.0
     assert config["lidar"]["horizontal_fov"] == 6.28318
     assert config["lidar"]["vertical_fov"] == 0.5236
+
+    lidar_height = next(
+        element for element in urdf_root.iter()
+        if element.attrib.get("name") == "lidar_height"
+    )
+    laser_joint = urdf_root.find("./joint[@name='laser_joint']")
+    assert lidar_height.attrib["value"] == "0.25"
+    assert laser_joint is not None
+    assert laser_joint.find("parent").attrib["link"] == "base_link"
+    assert laser_joint.find("child").attrib["link"] == "laser_link"
+    assert laser_joint.find("origin").attrib["xyz"] == "0 0 ${lidar_height}"
+    assert laser_joint.find("origin").attrib["rpy"] == "0 0.524 0"
 
     assert config["imu"]["parent_frame"] == "base_link"
     assert config["imu"]["frame"] == "imu_link"

@@ -320,3 +320,21 @@ def test_lio_sam2_plan_is_superseded_by_fast_lio2_plan():
     assert "2026-05-20-fast-lio2-fusion-nav2.md" in old_plan
     assert "FAST-LIO2" in progress
     assert "LIO-SAM2建图未验证" not in progress
+
+
+def test_vehicle_geometry_config_documents_units_and_self_filter():
+    config = read(WORKSPACE_DIR / "config" / "vehicle_geometry.yaml")
+
+    assert "wheelbase: 0.45" in config
+    assert "track_width: 0.35" in config
+    assert "wheel_radius: 0.07" in config
+    assert "max_steering_angle: 0.5236" in config
+    assert "min_turning_radius: 0.78" in config
+    assert "length: 0.55" in config
+    assert "width: 0.38" in config
+    assert "height: 0.12" in config
+    assert "box_min: [-0.35, -0.25, -0.05]" in config
+    assert "box_max: [0.35, 0.25, 0.45]" in config
+    assert "unit m" in config
+    assert "base_link" in config
+    assert "X forward positive" in config

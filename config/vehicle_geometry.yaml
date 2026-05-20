@@ -1,0 +1,34 @@
+# Unified vehicle geometry configuration.
+# Length values use unit m unless explicitly documented otherwise.
+# Coordinates are expressed in the base_link frame:
+# X forward positive, Y left positive, Z up positive.
+
+vehicle_geometry:
+  # Wheelbase, track width, and wheel radius use unit m.
+  wheelbase: 0.45
+  track_width: 0.35
+  wheel_radius: 0.07
+
+  # Steering limit uses radians; min_turning_radius uses unit m.
+  max_steering_angle: 0.5236
+  min_turning_radius: 0.78
+
+  body:
+    # Body dimensions use unit m in the base_link frame.
+    length: 0.55
+    width: 0.38
+    height: 0.12
+
+  footprint:
+    # Polygon vertices use unit m in base_link, with X forward positive.
+    polygon:
+      - [0.275, 0.19]
+      - [0.275, -0.19]
+      - [-0.275, -0.19]
+      - [-0.275, 0.19]
+
+  self_filter:
+    # Self-filter box bounds use unit m in base_link.
+    frame: base_link
+    box_min: [-0.35, -0.25, -0.05]
+    box_max: [0.35, 0.25, 0.45]

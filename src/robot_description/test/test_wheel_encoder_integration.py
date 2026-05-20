@@ -359,16 +359,27 @@ def test_vehicle_geometry_config_documents_units_and_self_filter():
 
 
 def test_sensor_mount_config_documents_lidar_extrinsics():
-    config = read(WORKSPACE_DIR / "config" / "sensor_mount.yaml")
+    config_text = read(WORKSPACE_DIR / "config" / "sensor_mount.yaml")
+    config = yaml.safe_load(config_text)
 
-    assert "parent_frame: base_link" in config
-    assert "frame: laser_link" in config
-    assert "xyz: [0.0, 0.0, 0.18]" in config
-    assert "rpy: [0.0, 0.524, 0.0]" in config
-    assert "min_range: 0.1" in config
-    assert "max_range: 100.0" in config
-    assert "horizontal_fov: 6.28318" in config
-    assert "vertical_fov: 0.5236" in config
-    assert "unit rad" in config
-    assert "Right-hand rule" in config
-    assert "X forward positive" in config
+    assert config["lidar"]["parent_frame"] == "base_link"
+    assert config["lidar"]["frame"] == "laser_link"
+    assert config["lidar"]["xyz"] == [0.0, 0.0, 0.18]
+    assert config["lidar"]["rpy"] == [0.0, 0.524, 0.0]
+    assert config["lidar"]["min_range"] == 0.1
+    assert config["lidar"]["max_range"] == 100.0
+    assert config["lidar"]["horizontal_fov"] == 6.28318
+    assert config["lidar"]["vertical_fov"] == 0.5236
+
+    assert config["imu"]["parent_frame"] == "base_link"
+    assert config["imu"]["frame"] == "imu_link"
+    assert config["imu"]["xyz"] == [0.0, 0.0, 0.08]
+    assert config["imu"]["rpy"] == [0.0, 0.0, 0.0]
+
+    assert config["gps"]["parent_frame"] == "base_link"
+    assert config["gps"]["frame"] == "gps_link"
+    assert config["gps"]["xyz"] == [0.0, 0.0, 0.3]
+
+    assert "unit rad" in config_text
+    assert "Right-hand rule" in config_text
+    assert "X forward positive" in config_text

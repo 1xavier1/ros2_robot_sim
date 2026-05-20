@@ -327,6 +327,57 @@ Acceptance criteria:
 - `/control/cmd_vel` publishes and is bridged to `/robot/cmd_vel`.
 - A short saved-map goal completes in simulation.
 
+## Cloud And Client Extension Boundary
+
+Later system versions need a cloud service and a client application. The client may be used for vehicle management, connection setup, map creation, job design, route setup, and remote task triggering. Vehicles may use 4G, and the cloud side may have normal internet connectivity.
+
+This stage only reserves the boundary. It does not implement cloud services, client UI, 4G communication, remote task dispatch, authentication, or fleet management.
+
+Future high-level architecture:
+
+```text
+client / web console
+  -> vehicle management
+  -> connection configuration
+  -> map creation and review
+  -> job design
+  -> route setup
+  -> remote task trigger
+
+cloud service
+  -> vehicle registry
+  -> task dispatch
+  -> map, route, and job configuration storage
+  -> status, logs, and telemetry collection
+  -> OTA and version-management reservation
+
+vehicle mission agent
+  -> receives cloud tasks
+  -> validates task and configuration versions
+  -> converts tasks into local ROS 2 actions, services, or topics
+  -> starts mapping, localization, navigation, or job workflows
+  -> reports local execution state
+```
+
+Reserved namespaces:
+
+```text
+/mission/*  later local mission state, commands, and progress
+/maps/*     later map upload, download, selection, and versioning
+/fleet/*    later vehicle state, heartbeat, and remote configuration
+/config/*   later validated vehicle, sensor, localization, and navigation configuration
+```
+
+Design rules:
+
+- FAST-LIO2, localization, and Nav2 must not depend on the cloud service.
+- The vehicle must keep local localization and navigation running when 4G or cloud connectivity is unavailable.
+- The cloud must not be part of the real-time control loop.
+- Remote task triggers must be converted into a local vehicle mission state machine before they affect ROS 2 navigation.
+- Maps, routes, jobs, and vehicle configuration must be versioned before remote management is introduced.
+- `vehicle_geometry.yaml` and `sensor_mount.yaml` may later be edited through a client, but the vehicle must validate them before applying them.
+- Safety, authentication, remote operation permissions, emergency stop, and geofencing require a separate design cycle.
+
 ## Out Of Scope For This Stage
 
 The following work is explicitly deferred:
@@ -339,6 +390,9 @@ The following work is explicitly deferred:
 - Multi-barn mission scheduling.
 - Online mapping while navigating.
 - Real vehicle hardware drivers.
+- Cloud service and client application.
+- 4G communication and remote task triggering.
+- Authentication, fleet management, and OTA.
 
 Reserve these topic names for later stages without implementing them now:
 
@@ -362,3 +416,4 @@ Required plan changes:
 - Keep unified `/sensing/...` and `/control/cmd_vel` interfaces.
 - Keep Nav2 saved-map navigation as the first navigation target.
 - Keep edge-following and dynamic cattle handling out of the current implementation scope.
+- Reserve mission, map, fleet, and remote configuration namespaces for later cloud/client integration.

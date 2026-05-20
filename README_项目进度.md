@@ -8,12 +8,12 @@
 - `scripts/verify_runtime_topics.sh` 可验收关键运行话题。
 - `localization.launch.py` 可启动 `robot_localization`，并输出 `/odometry/filtered`。
 - `navigation.launch.py` 已有 Nav2 缺包预检查；当前环境缺 Nav2 必需包时应清晰提示。
-- `lio_sam2.launch.py` 已有 LIO-SAM2 缺包预检查；建图链路尚未跑通。
+- `fast_lio2.launch.py` 将作为 FAST-LIO2 / FAST-LIO ROS 2 前端入口；建图链路尚未接入。
 
 下一阶段目标：
 
 1. 建立 `/sensing/...` 与 `/control/cmd_vel` 统一接口。
-2. 使用 LIO-SAM2 做仿真建图。
+2. 使用 FAST-LIO2 / FAST-LIO ROS 2 前端做仿真建图。
 3. 使用 LiDAR + IMU + 轮速 + GPS 弱约束做可降级定位。
 4. 先完成已建图 Nav2 导航，再扩展边建图边导航。
 
@@ -84,7 +84,7 @@ rviz2 -d /home/xavier/Workspace/ClaudeSpace/ros2_robot_sim/rviz/robot_config.rvi
 |------|------|------|------|
 | **阶段1** | 基础环境搭建 | ✅ 完成 | Gazebo仿真、URDF模型、传感器配置 |
 | **阶段2** | 传感器驱动与融合 | ⚠️ 部分 | Gazebo插件正常，EKF融合配置存在 |
-| **阶段3** | 3D SLAM建图 | ❌ 未完成 | LIO-SAM2配置存在但未验证 |
+| **阶段3** | 3D SLAM建图 | ❌ 未完成 | FAST-LIO2主线已确定，前端尚未接入 |
 | **阶段4** | 导航系统 | ⚠️ 部分 | Nav2配置存在，但控制器需要适配Ackermann |
 | **阶段5** | 真实小车移植 | ❌ 未开始 | 需要硬件接口重构 |
 
@@ -99,7 +99,7 @@ rviz2 -d /home/xavier/Workspace/ClaudeSpace/ros2_robot_sim/rviz/robot_config.rvi
 
 ### 待解决问题 ⚠️
 1. **Nav2导航未验证** - `navigation.launch.py` 存在但未测试
-2. **LIO-SAM2建图未验证** - `lio_sam2.launch.py` 存在但未测试
+2. **FAST-LIO2建图未接入** - 已确定以 FAST-LIO2 / FAST-LIO ROS 2 前端替代 LIO-SAM2 主线
 3. **EKF定位融合** - `localization.yaml` 配置存在但未启动
 4. **rviz_config.rviz** - 可能需要更新link列表以匹配当前URDF
 
@@ -108,6 +108,6 @@ rviz2 -d /home/xavier/Workspace/ClaudeSpace/ros2_robot_sim/rviz/robot_config.rvi
 # 1. 验证Nav2导航
 ros2 launch robot_description navigation.launch.py
 
-# 2. 验证LIO-SAM2建图
-ros2 launch robot_description lio_sam2.launch.py
+# 2. 验证FAST-LIO2建图前端
+ros2 launch robot_description fast_lio2.launch.py
 ```

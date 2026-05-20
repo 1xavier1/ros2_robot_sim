@@ -1,5 +1,9 @@
 # LIO-SAM2 Localization Nav2 Implementation Plan
 
+> **Superseded by:** `docs/superpowers/plans/2026-05-20-fast-lio2-fusion-nav2.md`
+>
+> 该计划保留为历史记录。当前主线已切换为 FAST-LIO2 / FAST-LIO ROS 2 前端 + 融合定位 + Nav2 保存地图导航。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Implement a simulation-first LIO-SAM2 mapping, localization, and saved-map Nav2 navigation path with unified sensor/control interfaces and clear future real-vehicle adapter boundaries.

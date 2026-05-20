@@ -304,3 +304,19 @@ def test_gps_degradation_scenarios_are_documented():
     assert "GPS jump" in doc
     assert "/sensing/gps/fix" in doc
     assert "/robot/ground_truth/odom" in doc
+
+
+def test_lio_sam2_plan_is_superseded_by_fast_lio2_plan():
+    old_plan = read(
+        WORKSPACE_DIR
+        / "docs"
+        / "superpowers"
+        / "plans"
+        / "2026-05-20-lio-sam2-localization-nav2.md"
+    )
+    progress = read(WORKSPACE_DIR / "README_项目进度.md")
+
+    assert "Superseded by" in old_plan
+    assert "2026-05-20-fast-lio2-fusion-nav2.md" in old_plan
+    assert "FAST-LIO2" in progress
+    assert "LIO-SAM2建图未验证" not in progress

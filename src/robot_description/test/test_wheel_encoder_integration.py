@@ -262,6 +262,25 @@ def test_runtime_sensor_verification_script_covers_unified_sensing_topics():
         assert topic in script
 
 
+def test_lidar_self_filter_script_filters_vehicle_box_and_ranges():
+    script = read(WORKSPACE_DIR / "scripts" / "lidar_self_filter.py")
+    package = read(PACKAGE_DIR / "package.xml")
+
+    assert "PointCloud2" in script
+    assert "vehicle_geometry.yaml" in script
+    assert "sensor_mount.yaml" in script
+    assert "/sensing/lidar/points_raw" in script
+    assert "/sensing/lidar/points_filtered" in script
+    assert "box_min" in script
+    assert "box_max" in script
+    assert "min_range" in script
+    assert "max_range" in script
+    assert "read_points" in script
+    assert "create_cloud" in script
+    assert "<depend>sensor_msgs_py</depend>" in package
+    assert "<exec_depend>python3-yaml</exec_depend>" in package
+
+
 def test_navigation_config_respects_ackermann_constraints():
     config = read(WORKSPACE_DIR / "config" / "navigation.yaml")
     launch = read(WORKSPACE_DIR / "launch" / "navigation.launch.py")

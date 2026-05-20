@@ -5,6 +5,8 @@ from pathlib import Path
 import re
 import xml.etree.ElementTree as ET
 
+import yaml
+
 
 PACKAGE_DIR = Path(__file__).resolve().parents[1]
 WORKSPACE_DIR = PACKAGE_DIR.parents[1]
@@ -323,18 +325,34 @@ def test_lio_sam2_plan_is_superseded_by_fast_lio2_plan():
 
 
 def test_vehicle_geometry_config_documents_units_and_self_filter():
-    config = read(WORKSPACE_DIR / "config" / "vehicle_geometry.yaml")
+    config_text = read(WORKSPACE_DIR / "config" / "vehicle_geometry.yaml")
+    config = yaml.safe_load(config_text)
+    vehicle = config["vehicle_geometry"]
 
-    assert "wheelbase: 0.45" in config
-    assert "track_width: 0.35" in config
-    assert "wheel_radius: 0.07" in config
-    assert "max_steering_angle: 0.5236" in config
-    assert "min_turning_radius: 0.78" in config
-    assert "length: 0.55" in config
-    assert "width: 0.38" in config
-    assert "height: 0.12" in config
-    assert "box_min: [-0.35, -0.25, -0.05]" in config
-    assert "box_max: [0.35, 0.25, 0.45]" in config
-    assert "unit m" in config
-    assert "base_link" in config
-    assert "X forward positive" in config
+    assert vehicle["wheelbase"] == 0.45
+    assert vehicle["track_width"] == 0.35
+    assert vehicle["wheel_radius"] == 0.07
+    assert vehicle["max_steering_angle"] == 0.5236
+    assert vehicle["min_turning_radius"] == 0.78
+
+    assert vehicle["body"]["length"] == 0.55
+    assert vehicle["body"]["width"] == 0.38
+    assert vehicle["body"]["height"] == 0.12
+
+    polygon = vehicle["footprint"]["polygon"]
+    assert len(polygon) == 4
+    assert all(len(point) == 2 for point in polygon)
+    assert {tuple(point) for point in polygon} == {
+        (0.275, 0.19),
+        (0.275, -0.19),
+        (-0.275, -0.19),
+        (-0.275, 0.19),
+    }
+
+    assert vehicle["self_filter"]["frame"] == "base_link"
+    assert vehicle["self_filter"]["box_min"] == [-0.35, -0.25, -0.05]
+    assert vehicle["self_filter"]["box_max"] == [0.35, 0.25, 0.45]
+
+    assert "unit m" in config_text
+    assert "base_link" in config_text
+    assert "X forward positive" in config_text

@@ -170,5 +170,26 @@ def generate_launch_description():
             )
         ))
 
+    # Map server — serves the saved occupancy grid map
+    map_yaml = os.path.join(pkg_share, '..', '..', '..', '..', 'maps', 'barn_corridor_sim_001.yaml')
+    if not os.path.exists(map_yaml):
+        map_yaml = os.path.join(pkg_share, 'maps', 'barn_corridor_sim_001.yaml')
+    nodes.append(Node(
+        package='nav2_map_server',
+        executable='map_server',
+        name='map_server',
+        output='screen',
+        parameters=[{'use_sim_time': use_sim_time, 'yaml_filename': map_yaml}],
+    ))
+
+    # TF adapter: publishes map->odom from FAST-LIO + wheel odom
+    nodes.append(Node(
+        package='robot_description',
+        executable='lio_tf_adapter.py',
+        name='lio_tf_adapter',
+        output='screen',
+        parameters=[{'use_sim_time': use_sim_time}],
+    ))
+
     launch_actions.extend(nodes)
     return LaunchDescription(launch_actions)

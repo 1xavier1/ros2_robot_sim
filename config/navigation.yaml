@@ -50,10 +50,7 @@ bt_navigator:
       - nav2_pipeline_sequence_bt_node
       - nav2_round_robin_node_bt_node
       - nav2_transform_available_condition_bt_node
-      - nav2_time_controller_bt_node
       - nav2_goal_updater_node_bt_node
-      - nav2_recovery_selector_bt_node
-      - nav2_goal_behavior_bt_node
 
 controller_server:
   ros__parameters:
@@ -67,18 +64,6 @@ controller_server:
     failure_mask: [1, 2, 3, 4, 5, 6]
     always_stop_on_robots: true
     max_robot_pose_search_dist: 10.0
-
-    # DWB Controller parameters
-    DWB_MIN_VEL_X: -0.5
-    DWB_MIN_VEL_Y: 0.0
-    DWB_MAX_VEL_X: 0.5
-    DWB_MAX_VEL_Y: 0.0
-    DWB_MAX_VEL_THETA: 1.0
-    DWB_MIN_VEL_X_VS_MIN_OBSTACLE_DIST: 0.1
-
-    # Scale constraints
-    DWB_SCALE_VELOCITY: 1.0
-    DWB_SCALE_VELOCITY_ROS: 1.0
 
     # Progress checker
     progress_checker_plugin: "progress_checker"
@@ -95,48 +80,62 @@ controller_server:
       yaw_goal_tolerance: 0.25
       stateful: true
 
-    # Local planner
-    local_planner: "dwb_core::DWBLocalPlanner"
-    dwb_core:
+    controller_plugins: ["FollowPath"]
+    FollowPath:
       plugin: "dwb_core::DWBLocalPlanner"
+      min_vel_x: -0.5
+      min_vel_y: 0.0
+      max_vel_x: 0.5
+      max_vel_y: 0.0
+      max_vel_theta: 1.0
+      min_speed_xy: 0.0
+      max_speed_xy: 0.5
+      min_speed_theta: 0.0
+      acc_lim_x: 2.5
+      acc_lim_y: 0.0
+      acc_lim_theta: 3.2
+      decel_lim_x: -2.5
+      decel_lim_y: 0.0
+      decel_lim_theta: -3.2
+      vx_samples: 20
+      vy_samples: 1
+      vtheta_samples: 20
+      sim_time: 1.7
+      linear_granularity: 0.05
+      angular_granularity: 0.025
+      transform_tolerance: 0.1
+      xy_goal_tolerance: 0.25
+      trans_stopped_velocity: 0.25
+      short_circuit_trajectory_evaluation: true
+      stateful: true
       critics:
-        - "base_obstacle"
-        - "twirling"
-        - "goal_align"
-        - "path_align"
-        - "path_dist"
-        - "goal_dist"
-      base_obstacle:
-        plugin: "dwb_plugins::BaseObstacleCritic"
-        scale: 1.0
-        enabled: true
-      twirling:
+        - RotateToGoal
+        - Oscillation
+        - BaseObstacle
+        - GoalAlign
+        - PathAlign
+        - PathDist
+        - GoalDist
+      BaseObstacle.scale: 0.02
+      PathAlign.scale: 32.0
+      PathAlign.forward_point_distance: 0.1
+      GoalAlign.scale: 24.0
+      GoalAlign.forward_point_distance: 0.1
+      PathDist.scale: 32.0
+      GoalDist.scale: 24.0
+      RotateToGoal.scale: 32.0
+      RotateToGoal.slowing_factor: 5.0
+      RotateToGoal.lookahead_time: -1.0
+      Twirling:
         plugin: "dwb_plugins::TwirlingCritic"
-        scale: 0.0
-        enabled: true
-      goal_align:
-        plugin: "dwb_plugins::GoalAlignCritic"
         scale: 1.0
-        enabled: true
-      path_align:
-        plugin: "dwb_plugins::PathAlignCritic"
-        scale: 1.0
-        enabled: true
-      path_dist:
-        plugin: "dwb_plugins::PathDistCritic"
-        scale: 1.0
-        enabled: true
-      goal_dist:
-        plugin: "dwb_plugins::GoalDistCritic"
-        scale: 1.0
-        enabled: true
 
 planner_server:
   ros__parameters:
     use_sim_time: true
     planner_plugins: ["GridBased"]
     GridBased:
-      plugin: "nav2_smac_planner::SmacPlannerHybrid"
+      plugin: "nav2_smac_planner/SmacPlannerHybrid"
       downsample_costmap: false
       downsampling_factor: 1
       allow_unknown: true

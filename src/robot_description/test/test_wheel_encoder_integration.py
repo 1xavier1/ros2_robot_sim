@@ -296,8 +296,8 @@ def test_navigation_config_respects_ackermann_constraints():
     config = read(WORKSPACE_DIR / "config" / "navigation.yaml")
     launch = read(WORKSPACE_DIR / "launch" / "navigation.launch.py")
 
-    assert "DWB_MAX_VEL_Y: 0.0" in config
-    assert "DWB_MIN_VEL_Y: 0.0" in config
+    assert "max_vel_y: 0.0" in config
+    assert "min_vel_y: 0.0" in config
     assert "min_turning_radius: 0.78" in config
     assert "w_reverse_cost: 2.5" in config
     assert "('/cmd_vel', '/control/cmd_vel')" in launch
@@ -510,6 +510,39 @@ def test_navigation_uses_filtered_lidar_and_vehicle_footprint_contract():
     assert "navigation.launch.py" in script
     assert "/control/cmd_vel" in script
     assert "Navigation2 precheck failed" in script
+    assert "Created controller : FollowPath" in script
+    assert "map->base_link TF is still required" in script
+
+
+def test_navigation_controller_uses_humble_dwb_follow_path_contract():
+    config = read(WORKSPACE_DIR / "config" / "navigation.yaml")
+
+    assert 'controller_plugins: ["FollowPath"]' in config
+    assert "FollowPath:" in config
+    assert 'plugin: "dwb_core::DWBLocalPlanner"' in config
+    assert "BaseObstacle" in config
+    assert "GoalAlign" in config
+    assert "PathAlign" in config
+    assert "PathDist" in config
+    assert "GoalDist" in config
+    assert "\n    dwb_core:" not in config
+
+
+def test_navigation_planner_uses_humble_smac_plugin_name():
+    config = read(WORKSPACE_DIR / "config" / "navigation.yaml")
+
+    assert 'plugin: "nav2_smac_planner/SmacPlannerHybrid"' in config
+    assert "nav2_smac_planner::SmacPlannerHybrid" not in config
+
+
+def test_navigation_bt_plugins_match_humble_installed_libraries():
+    config = read(WORKSPACE_DIR / "config" / "navigation.yaml")
+
+    assert "nav2_rate_controller_bt_node" in config
+    assert "nav2_goal_updater_node_bt_node" in config
+    assert "nav2_time_controller_bt_node" not in config
+    assert "nav2_recovery_selector_bt_node" not in config
+    assert "nav2_goal_behavior_bt_node" not in config
 
 
 def test_remote_extension_config_reserves_future_namespaces_without_runtime_dependency():

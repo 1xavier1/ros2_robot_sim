@@ -429,3 +429,16 @@ def test_sensing_bridge_routes_lidar_through_self_filter():
     assert "lidar_self_filter.py" in launch
     assert "('/sensing/lidar/points_filtered', '/sensing/lidar/points')" in launch
     assert "('/robot/velodyne_points', '/sensing/lidar/points')" not in launch
+
+
+def test_lidar_runtime_verification_checks_filtered_cloud_and_tf():
+    runtime = read(WORKSPACE_DIR / "scripts" / "verify_runtime_topics.sh")
+    lidar = read(WORKSPACE_DIR / "scripts" / "verify_lidar_mount.sh")
+
+    assert "/sensing/lidar/points_raw" in runtime
+    assert "/sensing/lidar/points_filtered" in runtime
+    assert "/sensing/lidar/points" in runtime
+    assert "base_link" in lidar
+    assert "laser_link" in lidar
+    assert "tf2_echo" in lidar
+    assert "ros2 topic echo /sensing/lidar/points_filtered" in lidar

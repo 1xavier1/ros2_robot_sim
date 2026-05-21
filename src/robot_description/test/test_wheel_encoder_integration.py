@@ -190,7 +190,8 @@ def test_sensing_bridge_launch_remaps_simulation_topics():
     launch = read(WORKSPACE_DIR / "launch" / "sensing_bridge.launch.py")
 
     expected_remaps = [
-        "('/robot/velodyne_points', '/sensing/lidar/points')",
+        "('/robot/velodyne_points', '/sensing/lidar/points_raw')",
+        "('/sensing/lidar/points_filtered', '/sensing/lidar/points')",
         "('/robot/imu/data', '/sensing/imu/data')",
         "('/robot/wheel_encoder/rear_average', '/sensing/wheel/speed')",
         "('/robot/rtk_gps/fix', '/sensing/gps/fix')",

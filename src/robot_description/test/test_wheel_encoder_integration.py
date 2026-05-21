@@ -491,3 +491,16 @@ def test_localization_launch_starts_mode_manager_and_verification_script():
     assert "/localization/mode" in script
     assert "/localization/fusion_weights" in script
     assert "ros2 topic echo" in script
+
+
+def test_navigation_uses_filtered_lidar_and_vehicle_footprint_contract():
+    config = read(WORKSPACE_DIR / "config" / "navigation.yaml")
+    script = read(WORKSPACE_DIR / "scripts" / "verify_saved_map_nav2_precheck.sh")
+
+    assert "topic: /sensing/lidar/points" in config
+    assert "footprint:" in config
+    assert "[0.275, 0.19]" in config
+    assert "[-0.275, -0.19]" in config
+    assert "navigation.launch.py" in script
+    assert "/control/cmd_vel" in script
+    assert "Navigation2 precheck failed" in script

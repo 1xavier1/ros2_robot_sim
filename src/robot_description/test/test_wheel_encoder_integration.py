@@ -419,3 +419,12 @@ def test_sensor_mount_config_documents_lidar_extrinsics():
     assert "unit rad" in config_text
     assert "Right-hand rule" in config_text
     assert "X forward positive" in config_text
+
+
+def test_sensing_bridge_routes_lidar_through_self_filter():
+    launch = read(WORKSPACE_DIR / "launch" / "sensing_bridge.launch.py")
+
+    assert "('/robot/velodyne_points', '/sensing/lidar/points_raw')" in launch
+    assert "lidar_self_filter.py" in launch
+    assert "('/sensing/lidar/points_filtered', '/sensing/lidar/points')" in launch
+    assert "('/robot/velodyne_points', '/sensing/lidar/points')" not in launch

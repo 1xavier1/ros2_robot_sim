@@ -8,14 +8,16 @@ from launch_ros.actions import Node
 
 
 SENSING_REMAPS = [
-    ('/robot/velodyne_points', '/sensing/lidar/points'),
+    ('/robot/velodyne_points', '/sensing/lidar/points_raw'),
+    ('/sensing/lidar/points_filtered', '/sensing/lidar/points'),
     ('/robot/imu/data', '/sensing/imu/data'),
     ('/robot/wheel_encoder/rear_average', '/sensing/wheel/speed'),
     ('/robot/rtk_gps/fix', '/sensing/gps/fix'),
 ]
 
 SENSING_RELAYS = [
-    ('relay_lidar_points', 'sensor_msgs/msg/PointCloud2'),
+    ('relay_lidar_points_raw', 'sensor_msgs/msg/PointCloud2'),
+    ('relay_lidar_points_filtered', 'sensor_msgs/msg/PointCloud2'),
     ('relay_imu_data', 'sensor_msgs/msg/Imu'),
     ('relay_wheel_speed', 'std_msgs/msg/Float64'),
     ('relay_gps_fix', 'sensor_msgs/msg/NavSatFix'),
@@ -38,8 +40,17 @@ def relay_node(name, input_topic, output_topic, message_type):
 
 
 def generate_launch_description():
+    lidar_self_filter = Node(
+        package='robot_description',
+        executable='lidar_self_filter.py',
+        name='lidar_self_filter',
+        output='screen',
+        parameters=[{'use_sim_time': LaunchConfiguration('use_sim_time')}],
+    )
+
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='true'),
+        lidar_self_filter,
         *[
             relay_node(name, input_topic, output_topic, message_type)
             for (name, message_type), (input_topic, output_topic)

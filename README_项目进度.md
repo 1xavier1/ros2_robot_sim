@@ -1,29 +1,32 @@
 # ROS2 阿克曼四驱机器人仿真系统 - 项目进度
 
-## 2026-05-21 当前基线
+## 2026-05-22 当前基线
 
 - 已切换到统一 `libackermann_drive_controller.so`，外部控制接口保持 `/robot/cmd_vel`。
-- 已验证 `/robot/odom`、`/robot/ground_truth/odom`、`/tf`、`/robot/imu/data`、`/robot/velodyne_points`、`/robot/wheel_encoder/rear_average` 可发布。
 - `/robot/ground_truth/odom` 仅用于仿真评估，不参与定位和导航闭环。
 - `scripts/verify_runtime_topics.sh` 可验收关键运行话题。
 - 已建立 `/sensing/...` 与 `/control/cmd_vel` 统一接口，仿真与未来真实车接口边界保持分离。
-- 已新增 `config/vehicle_geometry.yaml`，统一记录车辆尺寸、运动学、Nav2 footprint 与自车点云过滤包围盒参数。
-- 已新增 `config/sensor_mount.yaml`，统一记录 LiDAR、IMU、GPS 的安装位置、方向、有效距离和视场参数。
-- 已新增 `scripts/lidar_self_filter.py`，用于过滤落在车身包围盒内或无效范围内的点云。
-- `fast_lio2.launch.py` 已作为 FAST-LIO2 / FAST-LIO ROS 2 前端入口；`scripts/install_fast_lio2_source.sh` 默认接入 `MIT-SPARK/spark-fast-lio`。
-- `spark_fast_lio` 已完成源码 clone 和 colcon 构建，`spark_lio_mapping` 可执行入口可启动。
-- 仿真 LiDAR 点云已补齐 FAST-LIO 需要的 `ring` 和 `time` 字段。
-- FAST-LIO2 仿真联跑已验证 `/mapping/lio/odom` 与 `/mapping/lio/map_points` 可发布。
-- 已新增 `scripts/export_lio_map_to_occupancy.py`，可从 `/mapping/lio/map_points` 导出 Nav2 `map.yaml + map.pgm`。
-- 已新增 `localization_mode_manager.py` 与 `localization_modes.yaml`，可根据 GPS 质量发布 OUTDOOR、TRANSITION、BARN 模式和融合权重。
-- Nav2 Humble 依赖已安装并完成核心插件预检查：DWB `FollowPath`、Smac Hybrid planner、BT navigator 可配置启动。
-- 当前 Nav2 运行边界停在缺少保存地图和定位 TF：仍需补齐 `map -> odom -> base_footprint/base_link` 闭环后才能完成激活与导航目标测试。
+- `config/vehicle_geometry.yaml`、`config/sensor_mount.yaml`、`config/fast_lio.yaml` 参数配置已就绪。
+- `scripts/lidar_self_filter.py` 过滤车身点云并补齐 FAST-LIO `ring`/`time` 字段，已联跑验证。
+- `spark_fast_lio` 源码构建完成，`spark_lio_mapping` 可执行；`/mapping/lio/odom` (map->base_link) 和 `/mapping/lio/map_points` (frame_id: map) 可发布。
+- 新增 `scripts/accumulate_lio_map.py` — 多帧点云累积建图脚本，支持体素降采样和密度过滤，替代旧的单帧导出。
+- 已生成正式仿真地图 `maps/barn_corridor_sim_001.{yaml,pgm}` — 7.4m x 5.8m @ 0.1m，走廊墙壁结构清晰可见。
+- 新增 `scripts/lio_tf_adapter.py` — 将 FAST-LIO `map->base_link` 分解为 `map->odom`，与 `/robot/odom` (odom->base_footprint) 组合补齐 Nav2 TF 树。
+- `launch/navigation.launch.py` 已集成 map_server + TF 适配器 + 生命周期管理。
+- `localization_mode_manager.py` 可发布 OUTDOOR/TRANSITION/BARN 模式和融合权重，完整融合后端待接入。
+- Nav2 Humble 依赖已安装，DWB `FollowPath`、Smac Hybrid planner、BT navigator 插件已通过预检。
+- map_server 成功加载 `barn_corridor_sim_001` 地图，Nav2 lifecycle 节点全部可通过配置阶段。
+
+**当前阻塞点：**
+
+- Nav2 local_costmap TF lookup 时间戳不匹配：map_server 加载地图的时间戳早于 LIO odom 数据开始时间，导致 costmap 请求的历史 TF 不可用（差距 ~87s，`transform_tolerance: 60.0` 不足以覆盖）。
+- 推荐解法：clean restart 所有进程（仿真 + FAST-LIO + TF adapter + Nav2 在同一次启动序列内）使时间戳对齐。
 
 下一阶段目标：
 
-1. 用更完整的仿真行驶轨迹导出正式 Nav2 保存地图。
-2. 打通保存地图定位链，发布 `map -> odom -> base_footprint -> base_link`。
-3. 启动 Nav2 保存地图导航，验证路径规划、控制输出和 `/control/cmd_vel` 到 `/robot/cmd_vel` 的闭环。
+1. Clean restart 消除 TF 时间戳偏移，验证 Nav2 lifecycle 节点全部 activate。
+2. 发送短距离目标点做端到端保存地图导航验证。
+3. 可选：用更完整行驶轨迹生成更大覆盖范围的正式地图。
 
 ## 最新运行教程
 
@@ -75,8 +78,8 @@ rviz2 -d /home/xavier/Workspace/ClaudeSpace/ros2_robot_sim/rviz/robot_config.rvi
 |------|------|------|------|
 | **阶段1** | 基础环境搭建 | ✅ 完成 | Gazebo仿真、URDF模型、传感器配置 |
 | **阶段2** | 传感器驱动与融合 | ⚠️ 部分 | `/sensing/...` 统一接口、车身点云过滤、定位模式管理已加入；完整融合后端待接入 |
-| **阶段3** | 3D SLAM建图 | ⚠️ 部分 | `spark_fast_lio` 已构建并联跑输出 odom/map_points；2D保存地图导出入口已验证 |
-| **阶段4** | 导航系统 | ⚠️ 部分 | Nav2 Humble核心插件预检通过；保存地图与定位TF闭环待完成 |
+| **阶段3** | 3D SLAM建图 | ✅ 基本完成 | `spark_fast_lio` 已构建并联跑；`accumulate_lio_map.py` 累积建图；`barn_corridor_sim_001` 正式地图已生成 |
+| **阶段4** | 导航系统 | ⚠️ 部分 | Nav2 核心插件预检通过、map_server 可加载地图、TF 适配器已接入；TF 时间戳对齐后即可端到端导航验证 |
 | **阶段5** | 真实小车移植 | ❌ 未开始 | 已预留车辆几何、传感器外参、云端/客户端扩展配置边界 |
 
 ### 当前已验证功能 ✅
@@ -93,25 +96,30 @@ rviz2 -d /home/xavier/Workspace/ClaudeSpace/ros2_robot_sim/rviz/robot_config.rvi
 - `spark_fast_lio` 源码构建完成，`spark_lio_mapping` 可执行入口可启动
 - `/mapping/lio/odom` FAST-LIO2 仿真里程计输出
 - `/mapping/lio/map_points` FAST-LIO2 仿真地图点云输出
-- `export_lio_map_to_occupancy.py` 可导出 Nav2 `map.yaml + map.pgm`
+- `accumulate_lio_map.py` 多帧累积建图（体素降采样+密度过滤），可导出 Nav2 地图
+- `maps/barn_corridor_sim_001.{yaml,pgm}` 正式仿真地图 (7.4m x 5.8m, 0.1m)
+- `lio_tf_adapter.py` map->odom TF 适配器可正常发布变换
 - Nav2 DWB、Smac Hybrid、BT navigator 插件可加载配置
+- `map_server` 加载正式地图成功，lifecycle 节点全部通过配置阶段
 
 ### 待解决问题 ⚠️
-1. **正式保存地图未完成** - 需要让车辆在仿真中行驶采集更完整 `/mapping/lio/map_points`，再导出正式 2D occupancy map。
-2. **定位 TF 闭环未完成** - 需要发布 `map -> odom -> base_footprint/base_link`，当前 Nav2 激活会等待该变换。
-3. **Nav2目标导航未验证** - 核心插件预检已通过，但保存地图和定位链未打通前不能发送完整导航目标。
-4. **rviz_config.rviz** - 可能需要更新link列表以匹配当前URDF和新 `/sensing`、`/mapping` 话题。
+1. **TF 时间戳对齐** - Nav2 costmap 请求 TF 的时间戳早于 LIO odom 数据开始时间（差距 ~87s），`transform_tolerance: 60.0` 不足以覆盖。需 clean restart 所有进程对齐时间戳。
+2. **Nav2 lifecycle 激活未完成** - 核心插件已通过配置阶段，但 TF 时间戳问题解决后才能完成 activate 并发送导航目标。
+3. **正式地图覆盖范围有限** - 当前 `barn_corridor_sim_001` 覆盖 7.4m x 5.8m，走廊全长 30m。FAST-LIO 仅维护局部窗口地图，更大覆盖需多段采集拼接或开启 PCD 保存功能。
+4. **rviz_config.rviz** - 可能需要更新 link 列表以匹配当前 URDF 和新 `/sensing`、`/mapping` 话题。
 
 ### 建议下一步
 ```bash
-# 1. 验证FAST-LIO2前端入口
-./scripts/verify_fast_lio2_precheck.sh
+# 1. 验证基线
+python3 -m pytest src/robot_description/test/test_ackermann_kinematics.py src/robot_description/test/test_wheel_encoder_integration.py -q
+colcon build --packages-select robot_description
 
-# 2. 验证Nav2保存地图预检
-./scripts/verify_saved_map_nav2_precheck.sh
+# 2. Clean restart 全栈对齐时间戳
+# 按顺序在同一 shell 序列中启动：仿真 -> FAST-LIO -> lio_tf_adapter -> Nav2
 
-# 3. 从FAST-LIO地图点云导出Nav2保存地图
-python3 scripts/export_lio_map_to_occupancy.py --output maps/lio_map
+# 3. 端到端导航验证
+# 启动全栈后发送目标点：ros2 action send_goal /navigate_to_pose ...
 
-# 4. 后续主线：补齐保存地图和定位TF闭环
+# 4. 可选：生成更大覆盖地图
+python3 scripts/accumulate_lio_map.py --output maps/barn_corridor_sim_002 --duration-sec 120 --voxel-size 0.15 --min-hits 3
 ```

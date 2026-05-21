@@ -1,0 +1,23 @@
+remote_extension:
+  # This file reserves names and constraints for future cloud/client integration.
+  # The cloud is not part of the real-time control loop.
+  # The vehicle must keep local navigation running when 4G or cloud connectivity is unavailable.
+  # Maps, routes, jobs, and remote configuration must be versioned before cloud management is enabled.
+
+  namespaces:
+    # /mission: future local mission state, commands, and progress.
+    mission: /mission
+
+    # /maps: future map upload, download, selection, and versioning.
+    maps: /maps
+
+    # /fleet: future vehicle state, heartbeat, and remote configuration.
+    fleet: /fleet
+
+    # /config: future validated vehicle, sensor, localization, and navigation configuration.
+    config: /config
+
+  constraints:
+    cloud_realtime_control: false
+    local_navigation_required_without_cloud: true
+    configuration_must_be_validated_on_vehicle: true

@@ -504,3 +504,15 @@ def test_navigation_uses_filtered_lidar_and_vehicle_footprint_contract():
     assert "navigation.launch.py" in script
     assert "/control/cmd_vel" in script
     assert "Navigation2 precheck failed" in script
+
+
+def test_remote_extension_config_reserves_future_namespaces_without_runtime_dependency():
+    config = read(WORKSPACE_DIR / "config" / "remote_extension.yaml")
+
+    assert "/mission" in config
+    assert "/maps" in config
+    assert "/fleet" in config
+    assert "/config" in config
+    assert "cloud is not part of the real-time control loop" in config
+    assert "vehicle must keep local navigation running" in config
+    assert "versioned" in config

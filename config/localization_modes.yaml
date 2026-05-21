@@ -1,0 +1,24 @@
+localization_modes:
+  # gps_covariance_threshold: maximum accepted position covariance, unit m^2.
+  gps_covariance_threshold: 25.0
+
+  # gps_jump_threshold: maximum accepted GPS position jump between updates, unit m.
+  gps_jump_threshold: 3.0
+
+  OUTDOOR:
+    # gps_weight: relative GPS influence in outdoor mode.
+    gps_weight: 1.0
+    lio_weight: 0.6
+    wheel_weight: 0.4
+
+  TRANSITION:
+    # GPS is gradually reduced near barn entrances or when quality degrades.
+    gps_weight: 0.25
+    lio_weight: 0.9
+    wheel_weight: 0.7
+
+  BARN:
+    # GPS is not trusted inside barns.
+    gps_weight: 0.0
+    lio_weight: 1.0
+    wheel_weight: 0.9

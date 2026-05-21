@@ -465,3 +465,18 @@ def test_fast_lio2_precheck_script_reports_missing_or_running_nodes():
     assert "FAST-LIO2 precheck failed" in script
     assert "/mapping/lio/odom" in script
     assert "/mapping/lio/map_points" in script
+
+
+def test_localization_mode_manager_defines_outdoor_transition_barn_modes():
+    config = read(WORKSPACE_DIR / "config" / "localization_modes.yaml")
+    script = read(WORKSPACE_DIR / "scripts" / "localization_mode_manager.py")
+
+    assert "OUTDOOR" in config
+    assert "TRANSITION" in config
+    assert "BARN" in config
+    assert "gps_covariance_threshold: 25.0" in config
+    assert "gps_jump_threshold: 3.0" in config
+    assert "/localization/mode" in script
+    assert "/localization/fusion_weights" in script
+    assert "/localization/gps/gated" in script
+    assert "NavSatFix" in script

@@ -225,6 +225,12 @@ def test_robot_simulation_launch_can_enable_sensing_bridge():
     assert "IfCondition(LaunchConfiguration('sensing_bridge'))" in launch
 
 
+def test_robot_simulation_launch_allows_slow_gazebo_spawn_service():
+    launch = read(WORKSPACE_DIR / "launch" / "robot_simulation.launch.py")
+
+    assert "'-timeout', '120'" in launch
+
+
 def test_lio_sam_config_uses_unified_sensing_topics():
     config = read(WORKSPACE_DIR / "config" / "lio_sam.yaml")
     launch = read(WORKSPACE_DIR / "launch" / "lio_sam2.launch.py")

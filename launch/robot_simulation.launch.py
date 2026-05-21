@@ -86,6 +86,7 @@ def generate_launch_description():
         arguments=[
             '-entity', 'ackermann_robot',
             '-topic', 'robot_description',
+            '-timeout', '120',
             '-x', spawn_x,
             '-y', spawn_y,
             '-z', spawn_z,

@@ -629,3 +629,21 @@ def test_fast_lio_config_uses_spark_fast_lio_parameter_schema():
     assert "('imu', '/sensing/imu/data')" in launch
     assert "('odometry', '/mapping/lio/odom')" in launch
     assert "('cloud_registered', '/mapping/lio/map_points')" in launch
+
+
+def test_lio_map_to_occupancy_exporter_contract():
+    script = read(WORKSPACE_DIR / "scripts" / "export_lio_map_to_occupancy.py")
+
+    assert "/mapping/lio/map_points" in script
+    assert "sensor_msgs.msg" in script
+    assert "PointCloud2" in script
+    assert "sensor_msgs_py" in script
+    assert "nav2" in script.lower()
+    assert "occupied_thresh: 0.65" in script
+    assert "free_thresh: 0.25" in script
+    assert "resolution" in script
+    assert "min_z" in script
+    assert "max_z" in script
+    assert ".pgm" in script
+    assert ".yaml" in script
+    assert "maps" in script

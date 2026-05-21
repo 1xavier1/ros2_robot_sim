@@ -14,13 +14,14 @@
 - `spark_fast_lio` 已完成源码 clone 和 colcon 构建，`spark_lio_mapping` 可执行入口可启动。
 - 仿真 LiDAR 点云已补齐 FAST-LIO 需要的 `ring` 和 `time` 字段。
 - FAST-LIO2 仿真联跑已验证 `/mapping/lio/odom` 与 `/mapping/lio/map_points` 可发布。
+- 已新增 `scripts/export_lio_map_to_occupancy.py`，可从 `/mapping/lio/map_points` 导出 Nav2 `map.yaml + map.pgm`。
 - 已新增 `localization_mode_manager.py` 与 `localization_modes.yaml`，可根据 GPS 质量发布 OUTDOOR、TRANSITION、BARN 模式和融合权重。
 - Nav2 Humble 依赖已安装并完成核心插件预检查：DWB `FollowPath`、Smac Hybrid planner、BT navigator 可配置启动。
 - 当前 Nav2 运行边界停在缺少保存地图和定位 TF：仍需补齐 `map -> odom -> base_footprint/base_link` 闭环后才能完成激活与导航目标测试。
 
 下一阶段目标：
 
-1. 基于 `/mapping/lio/map_points` 生成或导出 Nav2 可用的 2D 保存地图。
+1. 用更完整的仿真行驶轨迹导出正式 Nav2 保存地图。
 2. 打通保存地图定位链，发布 `map -> odom -> base_footprint -> base_link`。
 3. 启动 Nav2 保存地图导航，验证路径规划、控制输出和 `/control/cmd_vel` 到 `/robot/cmd_vel` 的闭环。
 
@@ -74,7 +75,7 @@ rviz2 -d /home/xavier/Workspace/ClaudeSpace/ros2_robot_sim/rviz/robot_config.rvi
 |------|------|------|------|
 | **阶段1** | 基础环境搭建 | ✅ 完成 | Gazebo仿真、URDF模型、传感器配置 |
 | **阶段2** | 传感器驱动与融合 | ⚠️ 部分 | `/sensing/...` 统一接口、车身点云过滤、定位模式管理已加入；完整融合后端待接入 |
-| **阶段3** | 3D SLAM建图 | ⚠️ 部分 | `spark_fast_lio` 已构建并联跑输出 odom/map_points；保存地图导出待完成 |
+| **阶段3** | 3D SLAM建图 | ⚠️ 部分 | `spark_fast_lio` 已构建并联跑输出 odom/map_points；2D保存地图导出入口已验证 |
 | **阶段4** | 导航系统 | ⚠️ 部分 | Nav2 Humble核心插件预检通过；保存地图与定位TF闭环待完成 |
 | **阶段5** | 真实小车移植 | ❌ 未开始 | 已预留车辆几何、传感器外参、云端/客户端扩展配置边界 |
 
@@ -92,10 +93,11 @@ rviz2 -d /home/xavier/Workspace/ClaudeSpace/ros2_robot_sim/rviz/robot_config.rvi
 - `spark_fast_lio` 源码构建完成，`spark_lio_mapping` 可执行入口可启动
 - `/mapping/lio/odom` FAST-LIO2 仿真里程计输出
 - `/mapping/lio/map_points` FAST-LIO2 仿真地图点云输出
+- `export_lio_map_to_occupancy.py` 可导出 Nav2 `map.yaml + map.pgm`
 - Nav2 DWB、Smac Hybrid、BT navigator 插件可加载配置
 
 ### 待解决问题 ⚠️
-1. **保存地图生成未完成** - 需要从 3D 点云生成 Nav2 可用 2D occupancy map。
+1. **正式保存地图未完成** - 需要让车辆在仿真中行驶采集更完整 `/mapping/lio/map_points`，再导出正式 2D occupancy map。
 2. **定位 TF 闭环未完成** - 需要发布 `map -> odom -> base_footprint/base_link`，当前 Nav2 激活会等待该变换。
 3. **Nav2目标导航未验证** - 核心插件预检已通过，但保存地图和定位链未打通前不能发送完整导航目标。
 4. **rviz_config.rviz** - 可能需要更新link列表以匹配当前URDF和新 `/sensing`、`/mapping` 话题。
@@ -108,5 +110,8 @@ rviz2 -d /home/xavier/Workspace/ClaudeSpace/ros2_robot_sim/rviz/robot_config.rvi
 # 2. 验证Nav2保存地图预检
 ./scripts/verify_saved_map_nav2_precheck.sh
 
-# 3. 后续主线：补齐保存地图和定位TF闭环
+# 3. 从FAST-LIO地图点云导出Nav2保存地图
+python3 scripts/export_lio_map_to_occupancy.py --output maps/lio_map
+
+# 4. 后续主线：补齐保存地图和定位TF闭环
 ```

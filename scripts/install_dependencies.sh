@@ -47,15 +47,9 @@ sudo apt install -y \
     python3-pip \
     python3-rosdep
 
-# 安装FastLIO2作为备选SLAM方案
-echo "安装 FastLIO2..."
-cd /tmp
-if [ ! -d "fast_lio" ]; then
-    git clone https://github.com/AIC-Robotics/fast_lio.git
-    cd fast_lio
-    git checkout ros2
-    colcon build --packages-select fast_lio
-fi
+echo "FAST-LIO2 源码不在本脚本中自动 clone/build。"
+echo "如需接入 FAST-LIO2 ROS2 前端，请运行:"
+echo "  ./scripts/install_fast_lio2_source.sh"
 
 echo "=========================================="
 echo "依赖安装完成!"

@@ -522,3 +522,21 @@ def test_remote_extension_config_reserves_future_namespaces_without_runtime_depe
     assert "cloud is not part of the real-time control loop" in config
     assert "vehicle must keep local navigation running" in config
     assert "versioned" in config
+
+
+def test_dependency_installer_keeps_fast_lio_source_out_of_tmp():
+    installer = read(WORKSPACE_DIR / "scripts" / "install_dependencies.sh")
+    fast_lio_installer = read(
+        WORKSPACE_DIR / "scripts" / "install_fast_lio2_source.sh"
+    )
+
+    assert "ros-humble-navigation2" in installer
+    assert "ros-humble-nav2-bringup" in installer
+    assert "git clone https://github.com/AIC-Robotics/fast_lio.git" not in installer
+    assert "cd /tmp" not in installer
+    assert "install_fast_lio2_source.sh" in installer
+
+    assert "FAST_LIO2_REPO_URL" in fast_lio_installer
+    assert "src/third_party/fast_lio" in fast_lio_installer
+    assert "cd /tmp" not in fast_lio_installer
+    assert "colcon build --packages-select fast_lio" in fast_lio_installer

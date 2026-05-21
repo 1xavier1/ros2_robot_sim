@@ -10,14 +10,15 @@
 - 已新增 `config/vehicle_geometry.yaml`，统一记录车辆尺寸、运动学、Nav2 footprint 与自车点云过滤包围盒参数。
 - 已新增 `config/sensor_mount.yaml`，统一记录 LiDAR、IMU、GPS 的安装位置、方向、有效距离和视场参数。
 - 已新增 `scripts/lidar_self_filter.py`，用于过滤落在车身包围盒内或无效范围内的点云。
-- `fast_lio2.launch.py` 已作为 FAST-LIO2 / FAST-LIO ROS 2 前端入口；当前仓库预留源码安装脚本，前端源码接入和建图输出仍待验证。
+- `fast_lio2.launch.py` 已作为 FAST-LIO2 / FAST-LIO ROS 2 前端入口；`scripts/install_fast_lio2_source.sh` 默认接入 `MIT-SPARK/spark-fast-lio`。
+- `spark_fast_lio` 已完成源码 clone 和 colcon 构建，`spark_lio_mapping` 可执行入口可启动；建图输出仍需在仿真数据联跑中验证。
 - 已新增 `localization_mode_manager.py` 与 `localization_modes.yaml`，可根据 GPS 质量发布 OUTDOOR、TRANSITION、BARN 模式和融合权重。
 - Nav2 Humble 依赖已安装并完成核心插件预检查：DWB `FollowPath`、Smac Hybrid planner、BT navigator 可配置启动。
 - 当前 Nav2 运行边界停在缺少保存地图和定位 TF：仍需补齐 `map -> odom -> base_footprint/base_link` 闭环后才能完成激活与导航目标测试。
 
 下一阶段目标：
 
-1. 接入或构建 FAST-LIO2 / FAST-LIO ROS 2 前端源码，验证 `/mapping/lio/odom` 与 `/mapping/lio/map_points`。
+1. 启动仿真数据链，验证 `spark_fast_lio` 输出 `/mapping/lio/odom` 与 `/mapping/lio/map_points`。
 2. 基于 3D 点云生成或导出 Nav2 可用的 2D 保存地图。
 3. 打通保存地图定位链，发布 `map -> odom -> base_footprint -> base_link`。
 4. 启动 Nav2 保存地图导航，验证路径规划、控制输出和 `/control/cmd_vel` 到 `/robot/cmd_vel` 的闭环。
@@ -72,7 +73,7 @@ rviz2 -d /home/xavier/Workspace/ClaudeSpace/ros2_robot_sim/rviz/robot_config.rvi
 |------|------|------|------|
 | **阶段1** | 基础环境搭建 | ✅ 完成 | Gazebo仿真、URDF模型、传感器配置 |
 | **阶段2** | 传感器驱动与融合 | ⚠️ 部分 | `/sensing/...` 统一接口、车身点云过滤、定位模式管理已加入；完整融合后端待接入 |
-| **阶段3** | 3D SLAM建图 | ⚠️ 部分 | FAST-LIO2主线已确定，launch与安装入口已预留；源码前端与地图输出待验证 |
+| **阶段3** | 3D SLAM建图 | ⚠️ 部分 | `spark_fast_lio` 已构建且可执行入口可启动；仿真数据下 odom/map_points 输出待验证 |
 | **阶段4** | 导航系统 | ⚠️ 部分 | Nav2 Humble核心插件预检通过；保存地图与定位TF闭环待完成 |
 | **阶段5** | 真实小车移植 | ❌ 未开始 | 已预留车辆几何、传感器外参、云端/客户端扩展配置边界 |
 
@@ -87,10 +88,11 @@ rviz2 -d /home/xavier/Workspace/ClaudeSpace/ros2_robot_sim/rviz/robot_config.rvi
 - `/sensing/lidar/points_raw`、`/sensing/lidar/points_filtered`、`/sensing/lidar/points` 统一点云链路
 - `/sensing/imu/data`、`/sensing/gps/fix`、`/control/cmd_vel` 统一接口约定
 - `/localization/mode`、`/localization/fusion_weights`、`/localization/gps/gated` 定位模式管理输出
+- `spark_fast_lio` 源码构建完成，`spark_lio_mapping` 可执行入口可启动
 - Nav2 DWB、Smac Hybrid、BT navigator 插件可加载配置
 
 ### 待解决问题 ⚠️
-1. **FAST-LIO2建图未闭环** - 需要接入 ROS 2 兼容 FAST-LIO 前端源码，并验证 `/mapping/lio/odom`、`/mapping/lio/map_points`。
+1. **FAST-LIO2建图未闭环** - `spark_fast_lio` 已接入并可启动，需要在仿真 LiDAR/IMU 数据下验证 `/mapping/lio/odom`、`/mapping/lio/map_points`。
 2. **保存地图生成未完成** - 需要从 3D 点云生成 Nav2 可用 2D occupancy map。
 3. **定位 TF 闭环未完成** - 需要发布 `map -> odom -> base_footprint/base_link`，当前 Nav2 激活会等待该变换。
 4. **Nav2目标导航未验证** - 核心插件预检已通过，但保存地图和定位链未打通前不能发送完整导航目标。

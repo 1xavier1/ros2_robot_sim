@@ -21,6 +21,11 @@ if echo "$OUTPUT" | grep -q "FAST-LIO2 precheck failed"; then
     exit 0
 fi
 
+if echo "$OUTPUT" | grep -q "spark_lio_mapping"; then
+    echo "fast-lio2 front end executable is available"
+    exit 0
+fi
+
 if timeout 8s ros2 topic list | grep -Eq "/mapping/lio/odom|/mapping/lio/map_points"; then
     echo "fast-lio2 mapping topics are present"
     exit 0

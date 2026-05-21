@@ -454,8 +454,8 @@ def test_fast_lio2_config_and_launch_use_filtered_sensing_topics():
     config = read(WORKSPACE_DIR / "config" / "fast_lio.yaml")
     launch = read(WORKSPACE_DIR / "launch" / "fast_lio2.launch.py")
 
-    assert "/sensing/lidar/points" in config
-    assert "/sensing/imu/data" in config
+    assert "/sensing/lidar/points" in launch
+    assert "/sensing/imu/data" in launch
     assert "laser_link" in config
     assert "base_link" in config
     assert "FAST-LIO2 precheck failed" in launch
@@ -469,6 +469,7 @@ def test_fast_lio2_precheck_script_reports_missing_or_running_nodes():
 
     assert "fast_lio2.launch.py" in script
     assert "FAST-LIO2 precheck failed" in script
+    assert "spark_lio_mapping" in script
     assert "/mapping/lio/odom" in script
     assert "/mapping/lio/map_points" in script
 
@@ -570,6 +571,53 @@ def test_dependency_installer_keeps_fast_lio_source_out_of_tmp():
     assert "install_fast_lio2_source.sh" in installer
 
     assert "FAST_LIO2_REPO_URL" in fast_lio_installer
-    assert "src/third_party/fast_lio" in fast_lio_installer
+    assert "LIO_FRONTEND_REPO_URL" in fast_lio_installer
+    assert "src/third_party/spark-fast-lio" in fast_lio_installer
     assert "cd /tmp" not in fast_lio_installer
-    assert "colcon build --packages-select fast_lio" in fast_lio_installer
+    assert "colcon build --packages-up-to" in fast_lio_installer
+
+
+def test_fast_lio_source_installer_defaults_to_spark_fast_lio_candidate():
+    fast_lio_installer = read(
+        WORKSPACE_DIR / "scripts" / "install_fast_lio2_source.sh"
+    )
+
+    assert "https://github.com/MIT-SPARK/spark-fast-lio.git" in fast_lio_installer
+    assert "src/third_party/spark-fast-lio" in fast_lio_installer
+    assert "LIO_FRONTEND_PACKAGE_NAME" in fast_lio_installer
+    assert "spark_fast_lio" in fast_lio_installer
+    assert "colcon build --packages-up-to \"$LIO_FRONTEND_PACKAGE_NAME\"" in (
+        fast_lio_installer
+    )
+
+
+def test_fast_lio_launch_accepts_spark_fast_lio_ros2_frontend():
+    launch = read(WORKSPACE_DIR / "launch" / "fast_lio2.launch.py")
+
+    assert "'spark_fast_lio'" in launch
+    assert "'spark_lio_mapping'" in launch
+    assert "executable_name" in launch
+    assert "missing package spark_fast_lio, fast_lio, or fast_lio2" in launch
+
+
+def test_fast_lio_config_uses_spark_fast_lio_parameter_schema():
+    config = read(WORKSPACE_DIR / "config" / "fast_lio.yaml")
+    launch = read(WORKSPACE_DIR / "launch" / "fast_lio2.launch.py")
+
+    assert "/**:" in config
+    assert "common:" in config
+    assert "map_frame: map" in config
+    assert "lidar_frame: laser_link" in config
+    assert "base_frame: base_link" in config
+    assert "imu_frame: imu_link" in config
+    assert "preprocess:" in config
+    assert "lidar_type: 2" in config
+    assert "scan_line: 16" in config
+    assert "mapping:" in config
+    assert "extrinsic_T:" in config
+    assert "publish:" in config
+
+    assert "('lidar', '/sensing/lidar/points')" in launch
+    assert "('imu', '/sensing/imu/data')" in launch
+    assert "('odometry', '/mapping/lio/odom')" in launch
+    assert "('cloud_registered', '/mapping/lio/map_points')" in launch

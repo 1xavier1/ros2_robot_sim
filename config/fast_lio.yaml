@@ -1,20 +1,108 @@
-fast_lio:
+/**:
   ros__parameters:
-    # point_cloud_topic: FAST-LIO2 LiDAR input topic.
-    # Uses self-filtered 3D point cloud from the unified sensing interface.
-    point_cloud_topic: /sensing/lidar/points
+    common:
+      # map_frame: global frame published by the LIO front end.
+      # Unit: ROS frame id string. Nav2 will later consume map->odom localization.
+      map_frame: map
 
-    # imu_topic: FAST-LIO2 IMU input topic.
-    imu_topic: /sensing/imu/data
+      # lidar_frame: 3D LiDAR frame_id from URDF and sensor_mount.yaml.
+      # Unit: ROS frame id string.
+      lidar_frame: laser_link
 
-    # lidar_frame: LiDAR frame_id, must match sensor_mount.yaml and TF.
-    lidar_frame: laser_link
+      # imu_frame: IMU frame_id from URDF and sensor_mount.yaml.
+      # Unit: ROS frame id string.
+      imu_frame: imu_link
 
-    # body_frame: vehicle base frame used by localization and Nav2.
-    body_frame: base_link
+      # base_frame: vehicle body frame used by fusion and Nav2.
+      # Unit: ROS frame id string.
+      base_frame: base_link
 
-    # odom_topic: normalized LIO odometry output consumed by fusion.
-    odom_topic: /mapping/lio/odom
+      # visualization_frame: frame used by spark_fast_lio visualization outputs.
+      # Unit: ROS frame id string.
+      visualization_frame: base_link
 
-    # map_points_topic: normalized map cloud output for saving and inspection.
-    map_points_topic: /mapping/lio/map_points
+      # time_sync_en: enable only when LiDAR/IMU timestamps cannot be hardware synchronized.
+      # Unit: boolean.
+      time_sync_en: false
+
+    preprocess:
+      # lidar_type: 1=Livox, 2=Velodyne-style spinning LiDAR, 3=Ouster.
+      # Simulation currently publishes Velodyne-style PointCloud2.
+      lidar_type: 2
+
+      # scan_line: vertical channel count of the simulated/real LiDAR.
+      # Unit: count.
+      scan_line: 16
+
+      # scan_rate: LiDAR rotation or scan frequency.
+      # Unit: Hz.
+      scan_rate: 10
+
+      # timestamp_unit: point timestamp unit, 0=s, 1=ms, 2=us, 3=ns.
+      timestamp_unit: 2
+
+      # blind: minimum usable LiDAR range; closer points are ignored.
+      # Unit: m.
+      blind: 0.1
+
+    mapping:
+      # acc_cov / gyr_cov: IMU accelerometer and gyroscope noise covariance.
+      # Unit: algorithm-specific covariance values.
+      acc_cov: 0.1
+      gyr_cov: 0.1
+
+      # b_acc_cov / b_gyr_cov: IMU bias random walk covariance.
+      # Unit: algorithm-specific covariance values.
+      b_acc_cov: 0.003
+      b_gyr_cov: 0.001
+
+      # fov_degree: horizontal LiDAR field of view used by the mapper.
+      # Unit: degree.
+      fov_degree: 360.0
+
+      # det_range: maximum mapping detection range.
+      # Unit: m.
+      det_range: 100.0
+
+      # extrinsic_est_en: online LiDAR-IMU extrinsic estimation switch.
+      # Keep false in simulation and for calibrated real vehicles.
+      extrinsic_est_en: false
+
+      # extrinsic_T: LiDAR-to-IMU translation used by FAST-LIO-style front ends.
+      # Unit: m, order [x, y, z]. Update with sensor_mount.yaml when hardware changes.
+      extrinsic_T: [0.0, 0.0, 0.17]
+
+      # extrinsic_R: LiDAR-to-IMU rotation matrix, row-major.
+      # Unit: dimensionless rotation matrix. Identity means aligned LiDAR/IMU axes.
+      extrinsic_R: [1.0, 0.0, 0.0,
+                    0.0, 1.0, 0.0,
+                    0.0, 0.0, 1.0]
+
+    # filter_size_map: voxel size for map downsampling.
+    # Unit: m.
+    filter_size_map: 0.3
+
+    publish:
+      # path_en: publish estimated LIO path.
+      path_en: true
+
+      # scan_publish_en: publish registered global-frame point cloud.
+      scan_publish_en: true
+
+      # dense_publish_en: publish dense map points instead of sparse output.
+      dense_publish_en: true
+
+      # scan_bodyframe_pub_en: publish registered cloud in body frame.
+      scan_bodyframe_pub_en: true
+
+      # scan_lidarframe_pub_en / scan_baseframe_pub_en: optional debug point clouds.
+      scan_lidarframe_pub_en: false
+      scan_baseframe_pub_en: false
+
+    pcd_save:
+      # pcd_save_en: save accumulated point cloud to PCD.
+      pcd_save_en: false
+
+      # interval: number of LiDAR frames per saved PCD; -1 means one file.
+      # Unit: frame count.
+      interval: -1

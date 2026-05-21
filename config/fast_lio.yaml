@@ -18,8 +18,8 @@
       base_frame: base_link
 
       # visualization_frame: frame used by spark_fast_lio visualization outputs.
-      # Unit: ROS frame id string.
-      visualization_frame: base_link
+      # Unit: enum string accepted by spark_fast_lio: lidar, base, or imu.
+      visualization_frame: base
 
       # time_sync_en: enable only when LiDAR/IMU timestamps cannot be hardware synchronized.
       # Unit: boolean.
@@ -77,6 +77,11 @@
       extrinsic_R: [1.0, 0.0, 0.0,
                     0.0, 1.0, 0.0,
                     0.0, 0.0, 1.0]
+
+    gravity_alignment:
+      # enable_gravity_alignment: wait for motion before initial gravity alignment.
+      # Unit: boolean. Disabled in simulation prechecks so LIO output can start.
+      enable_gravity_alignment: false
 
     # filter_size_map: voxel size for map downsampling.
     # Unit: m.

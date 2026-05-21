@@ -22,6 +22,14 @@ lidar:
   horizontal_fov: 6.28318
   vertical_fov: 0.5236
 
+  # scan_lines: LiDAR vertical channel count used when simulated PointCloud2
+  # lacks a native ring field. Unit count.
+  scan_lines: 16
+
+  # scan_rate: LiDAR scan frequency used when simulated PointCloud2 lacks
+  # per-point timestamps. Unit Hz.
+  scan_rate: 10
+
 imu:
   # parent_frame: frame that IMU extrinsics are relative to.
   parent_frame: base_link

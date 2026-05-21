@@ -286,6 +286,11 @@ def test_lidar_self_filter_script_filters_vehicle_box_and_ranges():
     assert "min_range" in script
     assert "max_range" in script
     assert "read_points" in script
+    assert '"ring"' in script
+    assert '"time"' in script
+    assert "estimate_ring" in script
+    assert "scan_rate" in script
+    assert "time_offset_us" in script
     assert "create_cloud" in script
     assert "<depend>sensor_msgs_py</depend>" in package
     assert "<exec_depend>python3-yaml</exec_depend>" in package
@@ -610,11 +615,14 @@ def test_fast_lio_config_uses_spark_fast_lio_parameter_schema():
     assert "lidar_frame: laser_link" in config
     assert "base_frame: base_link" in config
     assert "imu_frame: imu_link" in config
+    assert "visualization_frame: base" in config
     assert "preprocess:" in config
     assert "lidar_type: 2" in config
     assert "scan_line: 16" in config
     assert "mapping:" in config
     assert "extrinsic_T:" in config
+    assert "gravity_alignment:" in config
+    assert "enable_gravity_alignment: false" in config
     assert "publish:" in config
 
     assert "('lidar', '/sensing/lidar/points')" in launch

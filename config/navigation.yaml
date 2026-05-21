@@ -64,6 +64,7 @@ controller_server:
     failure_mask: [1, 2, 3, 4, 5, 6]
     always_stop_on_robots: true
     max_robot_pose_search_dist: 10.0
+    transform_tolerance: 60.0
 
     # Progress checker
     progress_checker_plugin: "progress_checker"
@@ -133,6 +134,7 @@ controller_server:
 planner_server:
   ros__parameters:
     use_sim_time: true
+    transform_tolerance: 60.0
     planner_plugins: ["GridBased"]
     GridBased:
       plugin: "nav2_smac_planner/SmacPlannerHybrid"
@@ -200,6 +202,7 @@ behavior_server:
 global_costmap:
   ros__parameters:
     use_sim_time: true
+    transform_tolerance: 60.0
     # Same footprint as config/vehicle_geometry.yaml footprint.polygon, unit m.
     footprint: "[[0.275, 0.19], [0.275, -0.19], [-0.275, -0.19], [-0.275, 0.19]]"
     global_costmap:
@@ -211,6 +214,7 @@ global_costmap:
 local_costmap:
   ros__parameters:
     use_sim_time: true
+    transform_tolerance: 60.0
     # Same footprint as config/vehicle_geometry.yaml footprint.polygon, unit m.
     footprint: "[[0.275, 0.19], [0.275, -0.19], [-0.275, -0.19], [-0.275, 0.19]]"
     local_costmap:

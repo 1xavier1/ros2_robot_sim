@@ -62,6 +62,7 @@ def generate_launch_description():
 
     missing_optional = find_missing_packages(OPTIONAL_NAV2_PACKAGES)
     node_names = [
+        'map_server',
         'controller_server',
         'planner_server',
         'smoother_server',

@@ -456,3 +456,12 @@ def test_fast_lio2_config_and_launch_use_filtered_sensing_topics():
     assert "fast_lio" in launch
     assert "/mapping/lio/odom" in launch
     assert "/mapping/lio/map_points" in launch
+
+
+def test_fast_lio2_precheck_script_reports_missing_or_running_nodes():
+    script = read(WORKSPACE_DIR / "scripts" / "verify_fast_lio2_precheck.sh")
+
+    assert "fast_lio2.launch.py" in script
+    assert "FAST-LIO2 precheck failed" in script
+    assert "/mapping/lio/odom" in script
+    assert "/mapping/lio/map_points" in script

@@ -480,3 +480,14 @@ def test_localization_mode_manager_defines_outdoor_transition_barn_modes():
     assert "/localization/fusion_weights" in script
     assert "/localization/gps/gated" in script
     assert "NavSatFix" in script
+
+
+def test_localization_launch_starts_mode_manager_and_verification_script():
+    launch = read(WORKSPACE_DIR / "launch" / "localization.launch.py")
+    script = read(WORKSPACE_DIR / "scripts" / "verify_localization_modes.sh")
+
+    assert "localization_mode_manager.py" in launch
+    assert "localization_modes.yaml" in launch
+    assert "/localization/mode" in script
+    assert "/localization/fusion_weights" in script
+    assert "ros2 topic echo" in script

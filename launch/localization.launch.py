@@ -13,6 +13,7 @@ from launch_ros.actions import Node
 def generate_launch_description():
     pkg_share = get_package_share_directory('robot_description')
     config_file = os.path.join(pkg_share, 'config', 'localization.yaml')
+    mode_config_file = os.path.join(pkg_share, 'config', 'localization_modes.yaml')
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
 
     return LaunchDescription([
@@ -23,5 +24,15 @@ def generate_launch_description():
             name='ekf_filter_node',
             output='screen',
             parameters=[config_file, {'use_sim_time': use_sim_time}],
+        ),
+        Node(
+            package='robot_description',
+            executable='localization_mode_manager.py',
+            name='localization_mode_manager',
+            output='screen',
+            parameters=[{
+                'use_sim_time': use_sim_time,
+                'config_file': mode_config_file,
+            }],
         ),
     ])

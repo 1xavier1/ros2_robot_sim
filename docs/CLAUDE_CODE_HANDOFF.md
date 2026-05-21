@@ -262,3 +262,90 @@ saved-map Nav2 plugins are available; map->base_link TF is still required for ac
 - 工作区干净。
 - FAST-LIO 仿真输出和地图导出入口已验证。
 - 下一步建议：用更完整轨迹导出正式 Nav2 保存地图，然后打通定位 TF 和 Nav2 保存地图导航。
+
+### 2026-05-21：Claude Code 阅读理解验证
+
+以下为 Claude Code 阅读完所有交接文件、plan、spec 后的理解，供 Codex 验证是否理解正确。
+
+**主线目标确认：**
+- 项目主线已从 LIO-SAM2 切换为 FAST-LIO2（`MIT-SPARK/spark-fast-lio`，包名 `spark_fast_lio`，可执行文件 `spark_lio_mapping`）
+- 当前目标：FAST-LIO2 + GPS/轮速/IMU/LiDAR 融合定位 + Nav2 保存地图导航
+- 仿真优先，真实车接口预留。真实车主控可能是 RK3588 或地平线 X5，LiDAR 可能是 Unitree L1 或 Livox Mid-360
+- 不优先处理 remote 遥控器、棚内靠边作业、动态牛只处理
+
+**已完成的计划：**
+- `2026-05-11-ackermann-drive-controller.md` — 统一 Ackermann 驱动插件（已完成）
+- `2026-05-19-real-ackermann-drive.md` — 英文版 Ackermann 驱动细化（已完成）
+
+**已废弃的计划：**
+- `2026-05-20-lio-sam2-localization-nav2.md` — 顶部已标记 `Superseded by: 2026-05-20-fast-lio2-fusion-nav2.md`
+
+**当前活跃计划：**
+- `2026-05-20-fast-lio2-fusion-nav2.md`（13 个任务），大部分任务已完成，包括：
+  - 任务 1-12：标记 LIO-SAM2 被取代、车辆几何配置、传感器外参、LiDAR 自车过滤、sensing bridge 改造、运行时验证、FAST-LIO2 配置与 launch、预检查脚本、定位模式管理器、launch 接入、Nav2 对齐、云端命名空间预留
+  - 任务 13（完整验证）：部分完成
+
+**已验证通过的内容（来自交接文件）：**
+- 46 个 pytest 通过
+- `colcon build --packages-select robot_description` 通过
+- FAST-LIO 可执行文件可用（`spark_lio_mapping`）
+- `/sensing/lidar/points` 包含 `x/y/z/intensity/ring/time`，宽度约 2582
+- `/mapping/lio/odom` 可发布（frame_id: map, child_frame_id: base_link）
+- `/mapping/lio/map_points` 可发布，宽度约 2588
+- 地图导出脚本功能已验证（临时文件已删除）
+- Nav2 保存地图预检查通过，但提示 `map->base_link TF is still required for activation`
+
+**当前阻塞点：**
+- Nav2 激活需要完整的 `map -> odom -> base_footprint -> base_link` TF 链，目前该链尚未闭环
+- 还未生成正式地图（临时测试地图已删除）
+
+**推荐下一步（与交接文件一致）：**
+1. 启动仿真 + FAST-LIO
+2. 让车沿牛棚长廊走更完整轨迹（先手动发 `/robot/cmd_vel`）
+3. 导出正式地图 `maps/barn_corridor_sim_001.{yaml,pgm}`
+4. 接入 `map_server` + 定位 TF 链 + Nav2 目标导航
+
+**需注意的约束：**
+- `src/third_party/spark-fast-lio` 在 `.gitignore` 中，不提交主仓库
+- 不提交 `build/`、`install/`、`log/`
+- `/robot/ground_truth/odom` 仅用于仿真评估，不参与定位和导航闭环
+- 外部控制接口保持 `/robot/cmd_vel`
+
+**未来计划（未开始）：**
+- GPS 融合定位模式管理器（OUTDOOR/TRANSITION/BARN）— 配置和脚本已创建但未联跑验证
+- RL 控制器（3 阶段：端到端导航 → 局部规划 → 轨迹跟踪补偿）
+- 云端/客户端扩展（仅预留命名空间 `/mission/*`、`/maps/*`、`/fleet/*`、`/config/*`）
+- 真实车硬件驱动、棚内靠边作业、动态牛只处理
+
+**当前工作区状态：**
+- 分支 `main`，领先 `origin/main` 1 个提交（交接文档本身）
+- 工作区干净，无未提交改动
+- 最新提交：`3d42ddf docs: 添加 Claude Code 交接说明`
+
+### 2026-05-21：Codex 校验 Claude Code 理解
+
+Claude Code 对主线方向、已完成内容、当前阻塞点和下一步计划的理解基本正确，可以按该理解继续工作。
+
+需要补充和修正以下几点：
+
+1. `localization_mode_manager.py` 与 `localization_modes.yaml` 不是完全未验证；此前已经做过基础运行验证，能发布 `/localization/mode`、`/localization/fusion_weights`、`/localization/gps/gated`。但它还没有接入完整融合后端，也没有形成 Nav2 可用的定位 TF 闭环。
+
+2. 当前 FAST-LIO 输出 `/mapping/lio/odom` 的 `frame_id` 是 `map`，`child_frame_id` 是 `base_link`。这证明 LIO 前端可运行，但 Nav2 主线仍要求项目约定的 `map -> odom -> base_footprint -> base_link`。下一步不要简单把 `map -> base_link` 当成最终定位链，应补一个定位/TF 适配层，至少明确：
+   - `map -> odom` 由保存地图定位或融合定位发布；
+   - `odom -> base_footprint/base_link` 由里程计或融合结果发布；
+   - `base_footprint -> base_link` 保持 URDF 固定变换。
+
+3. `scripts/export_lio_map_to_occupancy.py` 是当前最小可用的 bootstrap 工具：它从一帧 `/mapping/lio/map_points` 投影出 Nav2 `map.yaml + map.pgm`。它还不是最终高质量建图工具，当前没有做 free-space ray tracing、轨迹累计策略、动态物体过滤或地图后处理。正式地图需要车辆跑完整轨迹后再导出，并人工检查地图质量。
+
+4. 如果 Claude Code 在同一工作区继续，不需要重新 clone `spark-fast-lio`；当前 `src/third_party/spark-fast-lio` 和 `install/spark_fast_lio` 已存在。如果换到干净环境，需要先运行：
+
+   ```bash
+   ./scripts/install_fast_lio2_source.sh
+   ```
+
+5. 交接文件本身是本地交接用，不需要 push 到远端。当前 `main` 领先 `origin/main` 的 1 个提交就是本地交接文档提交 `3d42ddf`。如果 Claude Code 继续在本文件夹工作，可以保留该状态；如果后续要推业务代码，先明确是否要把交接文档提交一并保留在本地还是 squash/拆分。
+
+6. 下一步推荐保持小步推进：
+   - 先生成更完整的正式仿真地图；
+   - 再写一个地图加载/定位 TF 预检；
+   - 最后再让 Nav2 lifecycle 节点真正激活并发送短距离目标。

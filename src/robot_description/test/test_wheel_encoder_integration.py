@@ -442,3 +442,17 @@ def test_lidar_runtime_verification_checks_filtered_cloud_and_tf():
     assert "laser_link" in lidar
     assert "tf2_echo" in lidar
     assert "ros2 topic echo /sensing/lidar/points_filtered" in lidar
+
+
+def test_fast_lio2_config_and_launch_use_filtered_sensing_topics():
+    config = read(WORKSPACE_DIR / "config" / "fast_lio.yaml")
+    launch = read(WORKSPACE_DIR / "launch" / "fast_lio2.launch.py")
+
+    assert "/sensing/lidar/points" in config
+    assert "/sensing/imu/data" in config
+    assert "laser_link" in config
+    assert "base_link" in config
+    assert "FAST-LIO2 precheck failed" in launch
+    assert "fast_lio" in launch
+    assert "/mapping/lio/odom" in launch
+    assert "/mapping/lio/map_points" in launch

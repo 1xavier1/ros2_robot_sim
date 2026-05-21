@@ -1,0 +1,20 @@
+fast_lio:
+  ros__parameters:
+    # point_cloud_topic: FAST-LIO2 LiDAR input topic.
+    # Uses self-filtered 3D point cloud from the unified sensing interface.
+    point_cloud_topic: /sensing/lidar/points
+
+    # imu_topic: FAST-LIO2 IMU input topic.
+    imu_topic: /sensing/imu/data
+
+    # lidar_frame: LiDAR frame_id, must match sensor_mount.yaml and TF.
+    lidar_frame: laser_link
+
+    # body_frame: vehicle base frame used by localization and Nav2.
+    body_frame: base_link
+
+    # odom_topic: normalized LIO odometry output consumed by fusion.
+    odom_topic: /mapping/lio/odom
+
+    # map_points_topic: normalized map cloud output for saving and inspection.
+    map_points_topic: /mapping/lio/map_points

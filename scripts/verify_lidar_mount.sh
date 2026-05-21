@@ -13,7 +13,9 @@ source /opt/ros/humble/setup.bash
 source "$WORKSPACE_DIR/install/setup.bash"
 set -u
 
-if ! timeout 8s ros2 run tf2_ros tf2_echo base_link laser_link >/dev/null; then
+TF_OUTPUT="$(timeout 8s ros2 run tf2_ros tf2_echo base_link laser_link --ros-args -p use_sim_time:=true 2>&1 || true)"
+if ! echo "$TF_OUTPUT" | grep -q "Translation:"; then
+    echo "$TF_OUTPUT" >&2
     echo "missing TF: base_link -> laser_link" >&2
     exit 1
 fi

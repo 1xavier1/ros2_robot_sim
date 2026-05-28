@@ -24,7 +24,7 @@ lidar:
 
   # scan_lines: LiDAR vertical channel count used when simulated PointCloud2
   # lacks a native ring field. Unit count.
-  scan_lines: 16
+  scan_lines: 32
 
   # scan_rate: LiDAR scan frequency used when simulated PointCloud2 lacks
   # per-point timestamps. Unit Hz.

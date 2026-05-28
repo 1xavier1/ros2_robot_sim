@@ -32,7 +32,7 @@
 
       # scan_line: vertical channel count of the simulated/real LiDAR.
       # Unit: count.
-      scan_line: 16
+      scan_line: 32
 
       # scan_rate: LiDAR rotation or scan frequency.
       # Unit: Hz.

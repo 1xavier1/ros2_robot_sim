@@ -22,9 +22,10 @@ def generate_launch_description():
 
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     use_rviz = LaunchConfiguration('rviz', default='true')
+    use_gazebo_gui = LaunchConfiguration('gui', default='true')
     sensing_bridge = LaunchConfiguration('sensing_bridge', default='true')
 
-    spawn_x = LaunchConfiguration('x', default='-5.0')
+    spawn_x = LaunchConfiguration('x', default='0.8')
     spawn_y = LaunchConfiguration('y', default='0.0')
     spawn_z = LaunchConfiguration('z', default='0.07')
 
@@ -77,6 +78,7 @@ def generate_launch_description():
             'verbose': 'true',
             'factory': 'true',
             'init': 'true',
+            'gui': use_gazebo_gui,
         }.items(),
     )
 
@@ -106,14 +108,16 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='true'),
-        DeclareLaunchArgument('x', default_value='-5.0',
-            description='Robot spawn X position'),
+        DeclareLaunchArgument('x', default_value='0.8',
+            description='Robot spawn X position near the tunnel entrance'),
         DeclareLaunchArgument('y', default_value='0.0',
             description='Robot spawn Y position'),
         DeclareLaunchArgument('z', default_value='0.07',
             description='Robot spawn Z position'),
         DeclareLaunchArgument('rviz', default_value='true',
             description='Start RViz with the simulation'),
+        DeclareLaunchArgument('gui', default_value='true',
+            description='Start Gazebo client GUI'),
         DeclareLaunchArgument('sensing_bridge', default_value='true',
             description='Relay simulation topics to /sensing interfaces'),
         ld_lib_path,

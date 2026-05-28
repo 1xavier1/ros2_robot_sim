@@ -5,6 +5,10 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
+        - /TF1
+        - /RobotModel1
+        - /Grid1
+        - /PointCloud2 (LIO map)1
       Splitter Ratio: 0.5
     Tree Height: 504
   - Class: rviz_common/Views
@@ -21,7 +25,7 @@ Visualization Manager:
       Color: 160; 160; 164
       Enabled: true
       Line Style:
-        Line Width: 0.029999999329447746
+        Line Width: 0.03
         Value: Lines
       Name: Grid
       Normal Cell Count: 0
@@ -30,7 +34,7 @@ Visualization Manager:
         Y: 0
         Z: 0
       Plane: XY
-      Plane Cell Count: 10
+      Plane Cell Count: 20
       Reference Frame: odom
       Value: true
     - Alpha: 1
@@ -47,68 +51,6 @@ Visualization Manager:
       Enabled: true
       Links:
         All Links Enabled: true
-        Expand Joint Details: false
-        Expand Link Details: false
-        Expand Tree: false
-        Link Tree Style: Links in Alphabetic Order
-        base_footprint:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        base_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        front_left_steering_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        front_left_wheel:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        front_right_steering_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        front_right_wheel:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        gps_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        imu_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        laser_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        rear_left_fixed_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        rear_left_wheel:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        rear_right_fixed_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        rear_right_wheel:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
       Mass Properties:
         Inertia: false
         Mass: false
@@ -126,66 +68,36 @@ Visualization Manager:
           Value: true
         base_link:
           Value: true
-        front_left_steering_link:
-          Value: true
-        front_left_wheel:
-          Value: true
-        front_right_steering_link:
-          Value: true
-        front_right_wheel:
-          Value: true
-        gps_link:
+        laser_link:
           Value: true
         imu_link:
           Value: true
-        laser_link:
+        gps_link:
+          Value: true
+        map:
           Value: true
         odom:
           Value: true
-        rear_left_fixed_link:
-          Value: true
-        rear_left_wheel:
-          Value: true
-        rear_right_fixed_link:
-          Value: true
-        rear_right_wheel:
-          Value: true
-      Marker Scale: 1
+      Marker Scale: 0.3
       Name: TF
       Show Arrows: true
       Show Axes: true
-      Show Names: false
+      Show Names: true
       Tree:
-        odom:
-          base_footprint:
-            base_link:
-              front_left_steering_link:
-                front_left_wheel:
+        map:
+          odom:
+            base_footprint:
+              base_link:
+                laser_link:
                   {}
-              front_right_steering_link:
-                front_right_wheel:
+                imu_link:
                   {}
-              rear_left_fixed_link:
-                rear_left_wheel:
+                gps_link:
                   {}
-              rear_right_fixed_link:
-                rear_right_wheel:
-                  {}
-              gps_link:
-                {}
-              imu_link:
-                {}
-              laser_link:
-                {}
       Update Interval: 0
       Value: true
     - Alpha: 1
       Autocompute Intensity Bounds: true
-      Autocompute Value Bounds:
-        Max Value: 10
-        Min Value: -10
-        Value: true
-      Axis: Z
       Channel Name: intensity
       Class: rviz_default_plugins/PointCloud2
       Color: 255; 255; 255
@@ -194,14 +106,12 @@ Visualization Manager:
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 0
       Min Color: 0; 0; 0
-      Min Intensity: 0
-      Name: PointCloud2
+      Name: Raw LiDAR
       Position Transformer: XYZ
       Selectable: true
-      Size (Pixels): 3
-      Size (m): 0.009999999776482582
+      Size (Pixels): 2
+      Size (m): 0.02
       Style: Flat Squares
       Topic:
         Depth: 5
@@ -209,9 +119,60 @@ Visualization Manager:
         Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /robot/velodyne_points
+        Value: /sensing/lidar/points
       Use Fixed Frame: true
       Use rainbow: true
+      Value: true
+    - Alpha: 0.7
+      Autocompute Intensity Bounds: true
+      Channel Name: intensity
+      Class: rviz_default_plugins/PointCloud2
+      Color: 25; 255; 0
+      Color Transformer: FlatColor
+      Decay Time: 0
+      Enabled: true
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Min Color: 0; 0; 0
+      Name: LIO Map
+      Position Transformer: XYZ
+      Selectable: true
+      Size (Pixels): 2
+      Size (m): 0.05
+      Style: Points
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /mapping/lio/map_points
+      Use Fixed Frame: true
+      Use rainbow: false
+      Value: true
+    - Angle Tolerance: 0.1
+      Class: rviz_default_plugins/Odometry
+      Enabled: true
+      Keep: 100
+      Name: LIO Odometry
+      Position Tolerance: 0.1
+      Shape:
+        Alpha: 1
+        Axes Length: 0.5
+        Axes Radius: 0.05
+        Color: 255; 25; 0
+        Head Length: 0.1
+        Head Radius: 0.05
+        Shaft Length: 0.3
+        Shaft Radius: 0.03
+        Value: Arrow
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /mapping/lio/odom
       Value: true
   Enabled: true
   Global Options:
@@ -224,6 +185,23 @@ Visualization Manager:
       Hide Inactive Objects: true
     - Class: rviz_default_plugins/MoveCamera
     - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/SetGoal
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /goal_pose
+    - Class: rviz_default_plugins/SetInitialPose
+      Covariance x: 0.25
+      Covariance y: 0.25
+      Covariance yaw: 0.0685
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /initialpose
   Transformation:
     Current:
       Class: rviz_default_plugins/TF
@@ -231,35 +209,34 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 3.542355537414551
+      Distance: 5
       Enable Stereo Rendering:
-        Stereo Eye Separation: 0.05999999865889549
+        Stereo Eye Separation: 0.06
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -5.019343852996826
-        Y: -1.1937050819396973
-        Z: 1.5742954015731812
+        X: 0
+        Y: 0
+        Z: 0.5
       Focal Shape Fixed Size: true
-      Focal Shape Size: 0.05000000074505806
+      Focal Shape Size: 0.05
       Invert Z Axis: false
       Name: Current View
-      Near Clip Distance: 0.009999999776482582
-      Pitch: 0.794796884059906
+      Near Clip Distance: 0.01
+      Pitch: 0.5
       Target Frame: odom
       Value: Orbit (rviz)
-      Yaw: 3.203580856323242
+      Yaw: 2.0
     Saved: ~
 Window Geometry:
   Displays:
     collapsed: false
-  Height: 1144
+  Height: 800
   Hide Left Dock: false
   Hide Right Dock: false
-  QMainWindow State: 000000ff00000000fd00000001000000000000016a00000422fc0200000002fb000000100044006900730070006c006100790073010000003b00000281000000c700fffffffb0000000a0056006900650077007301000002c20000019b000000a000ffffff0000050c0000042200000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Views:
     collapsed: false
-  Width: 1660
-  X: 70
-  Y: 27
+  Width: 1280
+  X: 0
+  Y: 0

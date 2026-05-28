@@ -221,6 +221,8 @@ def test_robot_simulation_launch_can_enable_sensing_bridge():
 
     assert "sensing_bridge.launch.py" in launch
     assert "sensing_bridge" in launch
+    assert "gui" in launch
+    assert "'gui': use_gazebo_gui" in launch
     assert "DeclareLaunchArgument('sensing_bridge'" in launch
     assert "IfCondition(LaunchConfiguration('sensing_bridge'))" in launch
 
@@ -229,6 +231,26 @@ def test_robot_simulation_launch_allows_slow_gazebo_spawn_service():
     launch = read(WORKSPACE_DIR / "launch" / "robot_simulation.launch.py")
 
     assert "'-timeout', '120'" in launch
+    assert "spawn_x = LaunchConfiguration('x', default='0.8')" in launch
+    assert "DeclareLaunchArgument('x', default_value='0.8'" in launch
+
+
+def test_slam_navigation_launch_sequences_sim_fast_lio_and_nav2():
+    launch = read(WORKSPACE_DIR / "launch" / "slam_navigation.launch.py")
+
+    assert "robot_simulation.launch.py" in launch
+    assert "fast_lio2.launch.py" in launch
+    assert "navigation.launch.py" in launch
+    assert "TimerAction(period=8.0" in launch
+    assert "TimerAction(period=14.0" in launch
+    assert "'sensing_bridge': 'true'" in launch
+    assert "'gui': gui" in launch
+    assert "'map': map_yaml" in launch
+    assert "DeclareLaunchArgument('rviz'" in launch
+    assert "DeclareLaunchArgument('gui'" in launch
+    assert "DeclareLaunchArgument('map'" in launch
+    assert "DeclareLaunchArgument('loop_closure'" in launch
+    assert "'loop_closure': loop_closure" in launch
 
 
 def test_lio_sam_config_uses_unified_sensing_topics():
@@ -406,6 +428,7 @@ def test_sensor_mount_config_documents_lidar_extrinsics():
     assert config["lidar"]["max_range"] == 100.0
     assert config["lidar"]["horizontal_fov"] == 6.28318
     assert config["lidar"]["vertical_fov"] == 0.5236
+    assert config["lidar"]["scan_lines"] == 32
 
     lidar_height = next(
         element for element in urdf_root.iter()
@@ -499,15 +522,59 @@ def test_localization_launch_starts_mode_manager_and_verification_script():
     script = read(WORKSPACE_DIR / "scripts" / "verify_localization_modes.sh")
 
     assert "localization_mode_manager.py" in launch
+    assert "lio_wheel_fusion.py" in launch
     assert "localization_modes.yaml" in launch
     assert "/localization/mode" in script
     assert "/localization/fusion_weights" in script
     assert "ros2 topic echo" in script
 
 
+def test_lio_wheel_fusion_publishes_fused_localization_odom():
+    script = read(WORKSPACE_DIR / "scripts" / "lio_wheel_fusion.py")
+
+    assert "/mapping/lio/odom" in script
+    assert "/robot/odom" in script
+    assert "/localization/gps/gated" in script
+    assert "/localization/fused_odom" in script
+    assert "/localization/fusion_status" in script
+    assert "Odometry" in script
+    assert "NavSatFix" in script
+    assert "frame_id = \"map\"" in script
+    assert "child_frame_id = \"base_link\"" in script
+    assert "wheel.twist.twist" in script
+    assert "gps_blend_weight" in script
+    assert "gps_to_local_xy" in script
+
+
+def test_global_localization_backend_publishes_optimized_odom_and_status():
+    script = read(WORKSPACE_DIR / "scripts" / "global_localization_backend.py")
+
+    assert "/localization/fused_odom" in script
+    assert "/robot/odom" in script
+    assert "/localization/gps/gated" in script
+    assert "/sensing/imu/data" in script
+    assert "/localization/global_odom" in script
+    assert "/localization/backend_status" in script
+    assert "/localization/loop_closure_status" in script
+    assert "enable_loop_closure" in script
+    assert "loop_closure=disabled" in script
+    assert "loop_closure=applied_odom_proximity" in script
+    assert "gps_anchor=fresh" in script
+    assert "wheel=fresh" in script
+    assert "imu=fresh" in script
+    assert "loop_correction_gain" in script
+    assert "max_loop_correction_step" in script
+    assert "apply_loop_correction" in script
+    assert "pending_loop_correction" in script
+    assert "Odometry" in script
+    assert "NavSatFix" in script
+    assert "Imu" in script
+
+
 def test_navigation_uses_filtered_lidar_and_vehicle_footprint_contract():
     config = read(WORKSPACE_DIR / "config" / "navigation.yaml")
     script = read(WORKSPACE_DIR / "scripts" / "verify_saved_map_nav2_precheck.sh")
+    launch = read(WORKSPACE_DIR / "launch" / "navigation.launch.py")
 
     assert "topic: /sensing/lidar/points" in config
     assert "footprint:" in config
@@ -518,6 +585,29 @@ def test_navigation_uses_filtered_lidar_and_vehicle_footprint_contract():
     assert "Navigation2 precheck failed" in script
     assert "Created controller : FollowPath" in script
     assert "map->base_link TF is still required" in script
+    assert 'grep -q "Created controller : FollowPath" <<< "$OUTPUT"' in script
+    assert 'TOPICS="$(timeout 8s ros2 topic list 2>/dev/null || true)"' in script
+    assert "DeclareLaunchArgument('map'" in launch
+    assert "yaml_filename': map_yaml" in launch
+
+
+def test_global_localization_runtime_verification_script_checks_nav2_chain():
+    script = read(WORKSPACE_DIR / "scripts" / "verify_global_localization_runtime.sh")
+
+    assert "/localization/fused_odom" in script
+    assert "/localization/global_odom" in script
+    assert "/localization/fusion_status" in script
+    assert "/localization/backend_status" in script
+    assert "/localization/loop_closure_status" in script
+    assert "/robot/odom" in script
+    assert "/mapping/lio/odom" in script
+    assert "tf2_echo map base_link" in script
+    assert "Robot is out of bounds of the costmap" in script
+    assert "ros2 topic echo" in script
+    assert "ROS_LOG_DIR" in script
+    assert "set +u" in script
+    assert "set -u" in script
+    assert "global localization runtime verification passed" in script
 
 
 def test_navigation_controller_uses_humble_dwb_follow_path_contract():
@@ -618,7 +708,7 @@ def test_fast_lio_config_uses_spark_fast_lio_parameter_schema():
     assert "visualization_frame: base" in config
     assert "preprocess:" in config
     assert "lidar_type: 2" in config
-    assert "scan_line: 16" in config
+    assert "scan_line: 32" in config
     assert "mapping:" in config
     assert "extrinsic_T:" in config
     assert "gravity_alignment:" in config
@@ -629,6 +719,13 @@ def test_fast_lio_config_uses_spark_fast_lio_parameter_schema():
     assert "('imu', '/sensing/imu/data')" in launch
     assert "('odometry', '/mapping/lio/odom')" in launch
     assert "('cloud_registered', '/mapping/lio/map_points')" in launch
+
+
+def test_simulated_lidar_density_supports_fast_lio_mapping():
+    urdf = read(PACKAGE_DIR / "urdf" / "robot_base.urdf.xacro")
+
+    assert "<samples>720</samples>" in urdf
+    assert "<samples>32</samples>" in urdf
 
 
 def test_lio_map_to_occupancy_exporter_contract():
@@ -647,3 +744,53 @@ def test_lio_map_to_occupancy_exporter_contract():
     assert ".pgm" in script
     assert ".yaml" in script
     assert "maps" in script
+
+
+def test_lio_accumulator_exports_nav2_map_with_lower_left_origin():
+    script = read(WORKSPACE_DIR / "scripts" / "accumulate_lio_map.py")
+
+    assert "np.flipud(grid)" in script
+    assert "origin_y = min_y + height * resolution" not in script
+    assert "origin: [{min_x:.6f}, {min_y:.6f}, 0.000000]" in script
+
+
+def test_lio_tf_adapter_publishes_map_to_odom_at_current_ros_time():
+    script = read(WORKSPACE_DIR / "scripts" / "lio_tf_adapter.py")
+
+    assert "/localization/global_odom" in script
+    assert "/localization/fused_odom" not in script
+    assert "/mapping/lio/odom" not in script
+    assert "t.header.stamp = self.get_clock().now().to_msg()" in script
+    assert "t.header.stamp = lio.header.stamp" not in script
+
+
+def test_fused_localization_tf_chain_is_owned_by_navigation_launch():
+    navigation_launch = read(WORKSPACE_DIR / "launch" / "navigation.launch.py")
+    simulation_launch = read(WORKSPACE_DIR / "launch" / "robot_simulation.launch.py")
+
+    assert "localization_mode_manager.py" in navigation_launch
+    assert "localization_modes.yaml" in navigation_launch
+    assert "lio_wheel_fusion.py" in navigation_launch
+    assert "global_localization_backend.py" in navigation_launch
+    assert "lio_tf_adapter.py" in navigation_launch
+    assert "DeclareLaunchArgument('loop_closure'" in navigation_launch
+    assert "'enable_loop_closure': loop_closure" in navigation_launch
+    assert "lio_tf_adapter.py" not in simulation_launch
+    assert "lio_wheel_fusion.py" not in simulation_launch
+    assert "global_localization_backend.py" not in simulation_launch
+
+
+def test_rviz_config_opens_with_odom_baseline_and_lio_overlays():
+    config = yaml.safe_load(read(WORKSPACE_DIR / "rviz" / "robot_config.rviz"))
+    manager = config["Visualization Manager"]
+    displays = manager["Displays"]
+    display_names = {display["Name"] for display in displays}
+
+    assert manager["Global Options"]["Fixed Frame"] == "odom"
+    assert {"Grid", "RobotModel", "TF", "Raw LiDAR", "LIO Map", "LIO Odometry"} <= display_names
+    assert not config.get("Window Geometry", {}).get("Hide Left Dock", False)
+    assert "QMainWindow State" not in config.get("Window Geometry", {})
+    assert all(
+        display.get("Class") != "rviz_default_plugins/Path"
+        for display in displays
+    )

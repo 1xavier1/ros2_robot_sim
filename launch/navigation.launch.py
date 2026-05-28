@@ -42,11 +42,23 @@ def generate_launch_description():
     missing_required = find_missing_packages(REQUIRED_NAV2_PACKAGES)
 
     config_file = os.path.join(pkg_share, 'config', 'navigation.yaml')
+    mode_config_file = os.path.join(pkg_share, 'config', 'localization_modes.yaml')
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
+    loop_closure = LaunchConfiguration('loop_closure', default='false')
+    default_map_yaml = os.path.join(pkg_share, '..', '..', '..', '..', 'maps', 'barn_corridor_sim_001.yaml')
+    if not os.path.exists(default_map_yaml):
+        default_map_yaml = os.path.join(pkg_share, 'maps', 'barn_corridor_sim_001.yaml')
+    map_yaml = LaunchConfiguration('map', default=default_map_yaml)
 
     launch_actions = [
         SetEnvironmentVariable('RCUTILS_CONSOLE_OUTPUT_FORMAT', '[{name}]: {message}'),
         DeclareLaunchArgument('use_sim_time', default_value='true'),
+        DeclareLaunchArgument('map',
+                              default_value=default_map_yaml,
+                              description='Occupancy grid YAML loaded by Nav2 map_server.'),
+        DeclareLaunchArgument('loop_closure',
+                              default_value='false',
+                              description='Enable conservative odom-proximity loop correction.'),
     ]
 
     if missing_required:
@@ -172,9 +184,6 @@ def generate_launch_description():
         ))
 
     # Map server — serves the saved occupancy grid map
-    map_yaml = os.path.join(pkg_share, '..', '..', '..', '..', 'maps', 'barn_corridor_sim_001.yaml')
-    if not os.path.exists(map_yaml):
-        map_yaml = os.path.join(pkg_share, 'maps', 'barn_corridor_sim_001.yaml')
     nodes.append(Node(
         package='nav2_map_server',
         executable='map_server',
@@ -183,7 +192,40 @@ def generate_launch_description():
         parameters=[{'use_sim_time': use_sim_time, 'yaml_filename': map_yaml}],
     ))
 
-    # TF adapter: publishes map->odom from FAST-LIO + wheel odom
+    # GPS gate and mode hints for fused localization
+    nodes.append(Node(
+        package='robot_description',
+        executable='localization_mode_manager.py',
+        name='localization_mode_manager',
+        output='screen',
+        parameters=[{
+            'use_sim_time': use_sim_time,
+            'config_file': mode_config_file,
+        }],
+    ))
+
+    # Fused localization: FAST-LIO pose + wheel twist + gated GPS correction
+    nodes.append(Node(
+        package='robot_description',
+        executable='lio_wheel_fusion.py',
+        name='lio_wheel_fusion',
+        output='screen',
+        parameters=[{'use_sim_time': use_sim_time}],
+    ))
+
+    # Global backend: bounded GPS anchor and explicit loop-closure status
+    nodes.append(Node(
+        package='robot_description',
+        executable='global_localization_backend.py',
+        name='global_localization_backend',
+        output='screen',
+        parameters=[{
+            'use_sim_time': use_sim_time,
+            'enable_loop_closure': loop_closure,
+        }],
+    ))
+
+    # TF adapter: publishes map->odom from global localization + wheel odom
     nodes.append(Node(
         package='robot_description',
         executable='lio_tf_adapter.py',

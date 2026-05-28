@@ -16,15 +16,15 @@ set -u
 OUTPUT="$(timeout 15s ros2 launch robot_description navigation.launch.py 2>&1 || true)"
 echo "$OUTPUT"
 
-if echo "$OUTPUT" | grep -q "Navigation2 precheck failed"; then
+if grep -q "Navigation2 precheck failed" <<< "$OUTPUT"; then
     echo "saved-map Nav2 precheck reported missing Nav2 dependencies"
     exit 0
 fi
 
-if echo "$OUTPUT" | grep -q "Created controller : FollowPath" \
-    && echo "$OUTPUT" | grep -q "Created global planner plugin GridBased" \
-    && echo "$OUTPUT" | grep -q "Configuring bt_navigator"; then
-    if echo "$OUTPUT" | grep -q 'Invalid frame ID "map"'; then
+if grep -q "Created controller : FollowPath" <<< "$OUTPUT" \
+    && grep -q "Created global planner plugin GridBased" <<< "$OUTPUT" \
+    && grep -q "Configuring bt_navigator" <<< "$OUTPUT"; then
+    if grep -q 'Invalid frame ID "map"' <<< "$OUTPUT"; then
         echo "saved-map Nav2 plugins are available; map->base_link TF is still required for activation"
     else
         echo "saved-map Nav2 plugins are available"
@@ -32,7 +32,8 @@ if echo "$OUTPUT" | grep -q "Created controller : FollowPath" \
     exit 0
 fi
 
-if timeout 8s ros2 topic list | grep -q "/control/cmd_vel"; then
+TOPICS="$(timeout 8s ros2 topic list 2>/dev/null || true)"
+if grep -q "/control/cmd_vel" <<< "$TOPICS"; then
     echo "saved-map Nav2 command topic is available"
     exit 0
 fi

@@ -35,4 +35,18 @@ def generate_launch_description():
                 'config_file': mode_config_file,
             }],
         ),
+        Node(
+            package='robot_description',
+            executable='lio_wheel_fusion.py',
+            name='lio_wheel_fusion',
+            output='screen',
+            parameters=[{'use_sim_time': use_sim_time}],
+        ),
+        Node(
+            package='robot_description',
+            executable='global_localization_backend.py',
+            name='global_localization_backend',
+            output='screen',
+            parameters=[{'use_sim_time': use_sim_time}],
+        ),
     ])

@@ -84,7 +84,8 @@ class MapAccumulator(Node):
             f"occupied: {occupied}/{total} ({100*occupied/total:.1f}%), "
             f"filtered points: {len(filtered)}, voxels: {len(self.counts)}"
         )
-        pgm_grid = np.where(occ_mask, np.uint8(255), np.uint8(0))
+        grid = np.where(occ_mask, np.uint8(255), np.uint8(0))
+        pgm_grid = np.flipud(grid)
         self._save_pgm(pgm_grid, output_base, resolution, min_x, min_y, height, width)
 
     def _save_pgm(self, grid, output_base, resolution, min_x, min_y, height, width):
@@ -92,12 +93,11 @@ class MapAccumulator(Node):
         with open(pgm_path, "wb") as f:
             f.write(f"P5\n{width} {height}\n255\n".encode())
             f.write(grid.tobytes())
-        origin_y = min_y + height * resolution
         content = (
             f"image: {pgm_path.name}\n"
             f"mode: trinary\n"
             f"resolution: {resolution:.6f}\n"
-            f"origin: [{min_x:.6f}, {origin_y:.6f}, 0.000000]\n"
+            f"origin: [{min_x:.6f}, {min_y:.6f}, 0.000000]\n"
             f"negate: 0\n"
             f"occupied_thresh: 0.65\n"
             f"free_thresh: 0.25\n"

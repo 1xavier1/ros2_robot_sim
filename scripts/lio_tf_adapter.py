@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Bridge FAST-LIO map->base_link odom into the Nav2 TF tree.
+"""Bridge global map->base_link odom into the Nav2 TF tree.
 
-Publishes map->odom by combining T_map_base (FAST-LIO) with inv(T_odom_basefootprint).
+Publishes map->odom by combining T_map_base with inv(T_odom_basefootprint).
 Nav2 receives: map -> odom -> base_footprint -> base_link
 """
 
@@ -43,7 +43,7 @@ class LioTfAdapter(Node):
         self.latest_lio_odom = None
         self.latest_wheel_odom = None
         self.lio_sub = self.create_subscription(
-            Odometry, "/mapping/lio/odom", self.on_lio_odom, 10
+            Odometry, "/localization/global_odom", self.on_lio_odom, 10
         )
         self.wheel_sub = self.create_subscription(
             Odometry, "/robot/odom", self.on_wheel_odom, 10
@@ -62,7 +62,7 @@ class LioTfAdapter(Node):
         lio = self.latest_lio_odom
         wheel = self.latest_wheel_odom
 
-        # T_map_base from FAST-LIO
+        # T_map_base from global localization backend
         m_x = lio.pose.pose.position.x
         m_y = lio.pose.pose.position.y
         m_z = lio.pose.pose.position.z
@@ -97,7 +97,7 @@ class LioTfAdapter(Node):
         )
 
         t = TransformStamped()
-        t.header.stamp = lio.header.stamp
+        t.header.stamp = self.get_clock().now().to_msg()
         t.header.frame_id = "map"
         t.child_frame_id = "odom"
         t.transform.translation.x = map_odom_x

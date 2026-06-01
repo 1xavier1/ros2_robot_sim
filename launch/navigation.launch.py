@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Launch file for Navigation2 with robot simulation"""
 
+import json
 import os
 from ament_index_python.packages import (
     PackageNotFoundError,
@@ -8,7 +9,7 @@ from ament_index_python.packages import (
 )
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, LogInfo, SetEnvironmentVariable
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 
 
@@ -37,6 +38,19 @@ def find_missing_packages(package_names):
     return missing_packages
 
 
+def _try_read_pose_sidecar(map_yaml_path):
+    if map_yaml_path is None:
+        return (0.0, 0.0, 0.0)
+    sidecar = map_yaml_path.replace(".yaml", "_pose.json")
+    if not os.path.exists(sidecar):
+        return (0.0, 0.0, 0.0)
+    try:
+        data = json.loads(open(sidecar).read())
+        return (float(data["x"]), float(data["y"]), float(data["yaw"]))
+    except Exception:
+        return (0.0, 0.0, 0.0)
+
+
 def generate_launch_description():
     pkg_share = get_package_share_directory('robot_description')
     missing_required = find_missing_packages(REQUIRED_NAV2_PACKAGES)
@@ -50,6 +64,10 @@ def generate_launch_description():
     )
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     loop_closure = LaunchConfiguration('loop_closure', default='false')
+    map_align_x = LaunchConfiguration('map_align_x', default='0.0')
+    map_align_y = LaunchConfiguration('map_align_y', default='0.0')
+    map_align_yaw = LaunchConfiguration('map_align_yaw', default='0.0')
+    gps_anchor_blend_weight = LaunchConfiguration('gps_anchor_blend_weight', default='0.0')
     default_map_yaml = os.path.join(pkg_share, '..', '..', '..', '..', 'maps', 'barn_corridor_sim_001.yaml')
     if not os.path.exists(default_map_yaml):
         default_map_yaml = os.path.join(pkg_share, 'maps', 'barn_corridor_sim_001.yaml')
@@ -64,6 +82,18 @@ def generate_launch_description():
         DeclareLaunchArgument('loop_closure',
                               default_value='false',
                               description='Enable conservative odom-proximity loop correction.'),
+        DeclareLaunchArgument('map_align_x',
+                              default_value='0.0',
+                              description='Static x offset from localization map frame to saved map frame.'),
+        DeclareLaunchArgument('map_align_y',
+                              default_value='0.0',
+                              description='Static y offset from localization map frame to saved map frame.'),
+        DeclareLaunchArgument('map_align_yaw',
+                              default_value='0.0',
+                              description='Static yaw offset from localization map frame to saved map frame, radians.'),
+        DeclareLaunchArgument('gps_anchor_blend_weight',
+                              default_value='0.0',
+                              description='GPS anchor blend weight for global localization backend.'),
     ]
 
     if missing_required:
@@ -237,6 +267,10 @@ def generate_launch_description():
         parameters=[{
             'use_sim_time': use_sim_time,
             'enable_loop_closure': loop_closure,
+            'map_align_x': map_align_x,
+            'map_align_y': map_align_y,
+            'map_align_yaw': map_align_yaw,
+            'gps_anchor_blend_weight': gps_anchor_blend_weight,
         }],
     ))
 

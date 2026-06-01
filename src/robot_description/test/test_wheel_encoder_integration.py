@@ -847,6 +847,23 @@ def test_fused_localization_tf_chain_is_owned_by_navigation_launch():
     assert "global_localization_backend.py" not in simulation_launch
 
 
+def test_navigation_launch_exposes_map_alignment_and_gps_anchor_controls():
+    navigation_launch = read(WORKSPACE_DIR / "launch" / "navigation.launch.py")
+    slam_navigation_launch = read(WORKSPACE_DIR / "launch" / "slam_navigation.launch.py")
+
+    for parameter in (
+        "map_align_x",
+        "map_align_y",
+        "map_align_yaw",
+        "gps_anchor_blend_weight",
+    ):
+        assert f"DeclareLaunchArgument('{parameter}'" in navigation_launch
+        assert f"LaunchConfiguration('{parameter}'" in navigation_launch
+        assert f"'{parameter}': {parameter}" in navigation_launch
+        assert f"DeclareLaunchArgument('{parameter}'" in slam_navigation_launch
+        assert f"'{parameter}': {parameter}" in slam_navigation_launch
+
+
 def test_rviz_config_opens_with_odom_baseline_and_lio_overlays():
     config = yaml.safe_load(read(WORKSPACE_DIR / "rviz" / "robot_config.rviz"))
     manager = config["Visualization Manager"]

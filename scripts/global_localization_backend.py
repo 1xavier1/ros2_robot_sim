@@ -27,7 +27,10 @@ class GlobalLocalizationBackend(Node):
         self.declare_parameter("gps_timeout_sec", 1.0)
         self.declare_parameter("wheel_timeout_sec", 0.25)
         self.declare_parameter("imu_timeout_sec", 0.25)
-        self.declare_parameter("gps_anchor_blend_weight", 0.02)
+        self.declare_parameter("gps_anchor_blend_weight", 0.0)
+        self.declare_parameter("map_align_x", 0.0)
+        self.declare_parameter("map_align_y", 0.0)
+        self.declare_parameter("map_align_yaw", 0.0)
         self.declare_parameter("enable_loop_closure", False)
         self.declare_parameter("loop_keyframe_distance", 1.0)
         self.declare_parameter("loop_candidate_radius", 0.75)
@@ -116,11 +119,29 @@ class GlobalLocalizationBackend(Node):
         if gps is not None:
             self.update_gps_anchor_offset(x, y, gps)
 
-        self.update_loop_status(x + self.global_offset_x, y + self.global_offset_y)
+        cx = x + self.global_offset_x
+        cy = y + self.global_offset_y
+        self.update_loop_status(cx, cy)
         self.apply_loop_correction()
+        cx = x + self.global_offset_x
+        cy = y + self.global_offset_y
 
-        global_odom.pose.pose.position.x = x + self.global_offset_x
-        global_odom.pose.pose.position.y = y + self.global_offset_y
+        align_yaw = float(self.get_parameter("map_align_yaw").value)
+        align_x = float(self.get_parameter("map_align_x").value)
+        align_y = float(self.get_parameter("map_align_y").value)
+        cos_a = math.cos(align_yaw)
+        sin_a = math.sin(align_yaw)
+        aligned_x = cos_a * cx - sin_a * cy + align_x
+        aligned_y = sin_a * cx + cos_a * cy + align_y
+
+        global_odom.pose.pose.position.x = aligned_x
+        global_odom.pose.pose.position.y = aligned_y
+        qz = global_odom.pose.pose.orientation.z
+        qw = global_odom.pose.pose.orientation.w
+        current_yaw = math.atan2(2.0 * (qw * qz), 1.0 - 2.0 * (qz * qz))
+        aligned_yaw = current_yaw + align_yaw
+        global_odom.pose.pose.orientation.z = math.sin(aligned_yaw * 0.5)
+        global_odom.pose.pose.orientation.w = math.cos(aligned_yaw * 0.5)
 
         self.odom_pub.publish(global_odom)
         self.publish_status(gps)

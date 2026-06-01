@@ -2,6 +2,7 @@
 """Accumulate FAST-LIO registered point clouds into a global map and export occupancy grid."""
 
 import argparse
+import json
 import math
 import signal
 import sys
@@ -10,6 +11,7 @@ from pathlib import Path
 
 import numpy as np
 import rclpy
+from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs_py import point_cloud2
@@ -24,8 +26,12 @@ class MapAccumulator(Node):
         self.cloud_sub = self.create_subscription(
             PointCloud2, "/mapping/lio/map_points", self.on_cloud, 10
         )
+        self.odom_sub = self.create_subscription(
+            Odometry, "/localization/global_odom", self.on_odom, 10
+        )
         self.frame_count = 0
         self.total_points = 0
+        self.latest_odom = None
 
     def voxel_key(self, x, y, z):
         vx = int(x / self.voxel_size)
@@ -43,6 +49,9 @@ class MapAccumulator(Node):
         self.total_points += len(msg.data) // msg.point_step
         if self.frame_count % 50 == 0:
             self.get_logger().info(f"frames: {self.frame_count}, voxels: {len(self.counts)}")
+
+    def on_odom(self, msg):
+        self.latest_odom = msg
 
     def export(self, output_base, resolution, min_z, max_z, min_hits):
         if not self.points:
@@ -87,6 +96,7 @@ class MapAccumulator(Node):
         grid = np.where(occ_mask, np.uint8(0), np.uint8(254))
         pgm_grid = np.flipud(grid)
         self._save_pgm(pgm_grid, output_base, resolution, min_x, min_y, height, width)
+        self._save_pose(output_base)
 
     def _save_pgm(self, grid, output_base, resolution, min_x, min_y, height, width):
         pgm_path = Path(f"{output_base}.pgm")
@@ -103,6 +113,19 @@ class MapAccumulator(Node):
             f"free_thresh: 0.25\n"
         )
         Path(f"{output_base}.yaml").write_text(content)
+
+
+    def _save_pose(self, output_base):
+        if self.latest_odom is None:
+            self.get_logger().warn("no odom received, skipping pose sidecar")
+            return
+        p = self.latest_odom.pose.pose.position
+        q = self.latest_odom.pose.pose.orientation
+        yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+        pose_data = {"x": p.x, "y": p.y, "z": p.z, "yaw": yaw}
+        pose_path = Path(f"{output_base}_pose.json")
+        pose_path.write_text(json.dumps(pose_data, indent=2))
+        self.get_logger().info(f"pose written to {pose_path}")
 
 
 def main():

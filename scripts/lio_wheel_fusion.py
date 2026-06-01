@@ -19,7 +19,7 @@ class LioWheelFusion(Node):
         super().__init__("lio_wheel_fusion")
         self.declare_parameter("wheel_timeout_sec", 0.25)
         self.declare_parameter("gps_timeout_sec", 1.0)
-        self.declare_parameter("gps_blend_weight", 0.05)
+        self.declare_parameter("gps_blend_weight", 0.0)
         self.latest_wheel_odom = None
         self.latest_wheel_stamp = None
         self.latest_gps = None

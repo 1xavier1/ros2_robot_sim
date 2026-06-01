@@ -5,6 +5,7 @@ import argparse
 from math import ceil, floor
 from pathlib import Path
 
+import numpy as np
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import PointCloud2
@@ -73,15 +74,16 @@ def make_grid(points, resolution, padding):
     min_x, min_y, max_x, max_y = point_bounds(points, padding)
     width = max(1, int(ceil((max_x - min_x) / resolution)))
     height = max(1, int(ceil((max_y - min_y) / resolution)))
-    grid = [[205 for _ in range(width)] for _ in range(height)]
+    grid = np.zeros((height, width), dtype=np.uint8)
 
     for x, y in points:
         col = int((x - min_x) / resolution)
         row = int((y - min_y) / resolution)
         if 0 <= col < width and 0 <= row < height:
-            grid[height - 1 - row][col] = 0
+            grid[height - 1 - row][col] = 1
 
-    return grid, (min_x, min_y, 0.0)
+    pgm_grid = np.where(grid > 0, np.uint8(0), np.uint8(254))
+    return pgm_grid, (min_x, min_y, 0.0)
 
 
 def write_pgm(path, grid):

@@ -1,0 +1,7 @@
+image: barn_corridor_sim_002.pgm
+mode: trinary
+resolution: 0.100000
+origin: [-3.464222, -2.728916, 0.000000]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.25

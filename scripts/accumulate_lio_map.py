@@ -84,7 +84,7 @@ class MapAccumulator(Node):
             f"occupied: {occupied}/{total} ({100*occupied/total:.1f}%), "
             f"filtered points: {len(filtered)}, voxels: {len(self.counts)}"
         )
-        grid = np.where(occ_mask, np.uint8(255), np.uint8(0))
+        grid = np.where(occ_mask, np.uint8(0), np.uint8(254))
         pgm_grid = np.flipud(grid)
         self._save_pgm(pgm_grid, output_base, resolution, min_x, min_y, height, width)
 

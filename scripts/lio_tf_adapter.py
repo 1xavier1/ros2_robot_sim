@@ -36,6 +36,45 @@ def quat_rotate(qx, qy, qz, qw, vx, vy, vz):
     return rx, ry, rz
 
 
+def yaw_from_quat(qx, qy, qz, qw):
+    siny_cosp = 2.0 * (qw * qz + qx * qy)
+    cosy_cosp = 1.0 - 2.0 * (qy * qy + qz * qz)
+    return math.atan2(siny_cosp, cosy_cosp)
+
+
+def quat_from_yaw(yaw):
+    return (0.0, 0.0, math.sin(yaw * 0.5), math.cos(yaw * 0.5))
+
+
+def compose_planar_map_odom(map_base, odom_base):
+    m_x, m_y, _m_z, m_qx, m_qy, m_qz, m_qw = map_base
+    o_x, o_y, _o_z, o_qx, o_qy, o_qz, o_qw = odom_base
+
+    m_yaw = yaw_from_quat(m_qx, m_qy, m_qz, m_qw)
+    o_yaw = yaw_from_quat(o_qx, o_qy, o_qz, o_qw)
+    inv_o_yaw = -o_yaw
+    cos_inv = math.cos(inv_o_yaw)
+    sin_inv = math.sin(inv_o_yaw)
+    inv_o_x = cos_inv * (-o_x) - sin_inv * (-o_y)
+    inv_o_y = sin_inv * (-o_x) + cos_inv * (-o_y)
+
+    cos_m = math.cos(m_yaw)
+    sin_m = math.sin(m_yaw)
+    map_odom_x = m_x + cos_m * inv_o_x - sin_m * inv_o_y
+    map_odom_y = m_y + sin_m * inv_o_x + cos_m * inv_o_y
+    map_odom_yaw = m_yaw + inv_o_yaw
+    map_odom_qx, map_odom_qy, map_odom_qz, map_odom_qw = quat_from_yaw(map_odom_yaw)
+    return (
+        map_odom_x,
+        map_odom_y,
+        0.0,
+        map_odom_qx,
+        map_odom_qy,
+        map_odom_qz,
+        map_odom_qw,
+    )
+
+
 class LioTfAdapter(Node):
     def __init__(self):
         super().__init__("lio_tf_adapter")
@@ -80,20 +119,17 @@ class LioTfAdapter(Node):
         o_qz = wheel.pose.pose.orientation.z
         o_qw = wheel.pose.pose.orientation.w
 
-        # T_map_odom = T_map_base * inv(T_odom_basefootprint)
-        inv_o_qx, inv_o_qy, inv_o_qz, inv_o_qw = quat_inverse(o_qx, o_qy, o_qz, o_qw)
-        inv_o_x, inv_o_y, inv_o_z = quat_rotate(
-            inv_o_qx, inv_o_qy, inv_o_qz, inv_o_qw,
-            -o_x, -o_y, -o_z,
-        )
-
-        # Compose: first rotate inv_o_pos by map quat, then add map pos
-        map_odom_x = m_x + quat_rotate(m_qx, m_qy, m_qz, m_qw, inv_o_x, inv_o_y, inv_o_z)[0]
-        map_odom_y = m_y + quat_rotate(m_qx, m_qy, m_qz, m_qw, inv_o_x, inv_o_y, inv_o_z)[1]
-        map_odom_z = m_z + quat_rotate(m_qx, m_qy, m_qz, m_qw, inv_o_x, inv_o_y, inv_o_z)[2]
-        map_odom_qx, map_odom_qy, map_odom_qz, map_odom_qw = quat_multiply(
-            m_qx, m_qy, m_qz, m_qw,
-            inv_o_qx, inv_o_qy, inv_o_qz, inv_o_qw,
+        (
+            map_odom_x,
+            map_odom_y,
+            map_odom_z,
+            map_odom_qx,
+            map_odom_qy,
+            map_odom_qz,
+            map_odom_qw,
+        ) = compose_planar_map_odom(
+            (m_x, m_y, m_z, m_qx, m_qy, m_qz, m_qw),
+            (o_x, o_y, o_z, o_qx, o_qy, o_qz, o_qw),
         )
 
         t = TransformStamped()

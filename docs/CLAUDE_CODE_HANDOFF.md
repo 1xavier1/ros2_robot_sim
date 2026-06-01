@@ -715,6 +715,170 @@ colcon build --packages-select robot_description
 - Nav2 预检后已清理相关 ROS 进程。
 - 最后检查未发现 Nav2、map_server、localization_mode_manager、lio_wheel_fusion、global_localization_backend 或 lio_tf_adapter 残留。
 
+### 2026-06-01：Codex 继续打通 FAST-LIO + Nav2 运行链路
+
+**当前提交与工作区：**
+
+- 分支：`main`，跟踪 `origin/main`。
+- 工作区有未提交修改，本次继续沿用现有脏工作区，不回退已有改动。
+- `scripts/install_dependencies.sh` 的可执行位变化是接手前已有状态，本次没有刻意修改。
+
+**本次已处理：**
+
+| 文件 | 变更 |
+|------|------|
+| `launch/fast_lio2.launch.py` | 新增 `base_link -> laser_link` 静态 TF，保证 `spark_lio_mapping` 启动时可同步检测 LiDAR 外参 |
+| `config/navigation.yaml` | 修正 Nav2 Humble BT 插件列表、BT XML 路径、costmap frame；控制器从 DWB 切换为 `RegulatedPurePursuitController`；按 Humble `velocity_smoother` 参数结构改为 `max_velocity/min_velocity/scale_velocities` |
+| `launch/navigation.launch.py` | `map:=...` 继续透传到 `map_server`；`navigate_through_poses` 使用本地无 `RemovePassedGoals` 的 BT XML；controller 和 behavior recovery 输出统一进 `/control/cmd_vel`；`velocity_smoother` 使用 `cmd_vel -> /control/cmd_vel` 和 `cmd_vel_smoothed -> /robot/cmd_vel`；并纳入 lifecycle manager |
+| `config/navigate_through_poses_w_replanning_and_recovery_no_remove.xml` | 新增 Humble 兼容的 through-poses BT，移除当前环境不支持的 `RemovePassedGoals` |
+| `scripts/lio_tf_adapter.py` | `map -> odom` 组合改为 SE2 平面投影，避免把 FAST-LIO 的 z/roll/pitch 注入 Nav2 TF 链 |
+| `scripts/accumulate_lio_map.py` | 导出的 PGM 改为 Nav2 期望语义：障碍为 `0`，自由为 `254` |
+| `scripts/export_lio_map_to_occupancy.py` | 同步改为 Nav2 PGM 语义，并使用 NumPy 生成栅格 |
+| `maps/barn_corridor_sim_001.pgm` | 已把旧反向像素语义转换为 Nav2 语义 |
+| `maps/barn_corridor_sim_002.{yaml,pgm}` | 新增一张短距离小地图，但仍只是调试产物，不建议视为最终正式地图 |
+| `src/robot_description/test/test_wheel_encoder_integration.py` | 新增/更新 Nav2、BT、PGM、TF adapter、velocity smoother 契约测试 |
+
+**已确认解决的问题：**
+
+1. `spark_fast_lio` 启动时可检测到 `base_link -> laser_link` 外参。
+2. Nav2 lifecycle 可启动到 `Managed nodes are active`。
+3. `/bt_navigator` lifecycle 可查询到 `active [3]`。
+4. `tf2_echo map base_footprint` 能拿到 TF。
+5. 旧地图 PGM 黑白语义反了，导致 planner 报 `Starting point in lethal space!`。该问题已通过导出脚本修正和现有地图像素转换解决。
+6. DWB 在当前配置下 `controller_server` 曾在 `FollowPath` 后段错误退出；切到 Regulated Pure Pursuit 后不再复现该段错误。
+7. `/control/cmd_vel` 到 `/robot/cmd_vel` 链路此前断开，原因是 `velocity_smoother` 话题名和参数名按了错误接口写法，且 lifecycle 未纳入管理。代码已修正。
+
+**最新验证结果：**
+
+```bash
+python3 -m pytest src/robot_description/test/test_ackermann_kinematics.py src/robot_description/test/test_wheel_encoder_integration.py -q
+# 58 passed
+
+colcon build --packages-select robot_description
+# 1 package finished
+```
+
+运行时曾验证到：
+
+```text
+spark_lio_mapping: Extrinsics detected
+lifecycle_manager_navigation: Managed nodes are active
+ros2 lifecycle get /bt_navigator -> active [3]
+tf2_echo map base_footprint -> 有实时变换输出
+```
+
+**本轮验证检查点：**
+
+1. lifecycle manager 的 `node_names` 已提前加入 `velocity_smoother`，重启全栈后需要确认日志中出现：
+
+   ```text
+   Configuring velocity_smoother
+   Activating velocity_smoother
+   ```
+
+2. 全栈启动后检查话题链路：
+
+   ```bash
+   ros2 topic info /control/cmd_vel --verbose
+   ros2 topic info /robot/cmd_vel --verbose
+   ```
+
+   预期：
+
+   - `/control/cmd_vel` 有 Nav2 controller 发布者、`velocity_smoother` 订阅者；
+   - `/robot/cmd_vel` 有 `velocity_smoother` 发布者、`/robot/ackermann_drive_controller` 订阅者。
+
+3. 发送短距离目标：
+
+   ```bash
+   ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose \
+     "{pose: {header: {frame_id: 'map'}, pose: {position: {x: 0.6, y: 0.0, z: 0.0}, orientation: {w: 1.0}}}}"
+   ```
+
+   用于确认车辆是否实际移动、目标是否完成，或是否仍出现 `Failed to make progress`。
+
+4. 仍不建议把当前 90.4m x 215.4m 的 `barn_corridor_sim_001` 视为最终地图。后续应在命令链路稳定后重新采集更小范围、高质量地图。
+
+**推荐下一步：**
+
+1. 重新构建后 clean restart：
+
+   ```bash
+   source /opt/ros/humble/setup.bash
+   source install/setup.bash
+   ROS_LOG_DIR=$PWD/log/ros ros2 launch robot_description slam_navigation.launch.py gui:=false rviz:=false
+   ```
+
+2. 等待 `Managed nodes are active`，确认 `velocity_smoother` 也被配置和激活。
+3. 检查 `/control/cmd_vel`、`/robot/cmd_vel` 话题发布订阅关系。
+4. 发送短距离 Nav2 目标，观察 `/robot/odom` 是否明显变化。
+5. 若目标仍失败，优先看：
+   - `velocity_smoother` 是否 active；
+   - `/robot/cmd_vel` 是否持续发布非零速度；
+   - costmap 是否再次出现 `Robot is out of bounds of the costmap`；
+   - 当前地图与机器人真实初始位姿是否匹配。
+
+**继续验证补充：**
+
+已完成上述第 1～3 步，并确认：
+
+```text
+lifecycle_manager_navigation: Configuring velocity_smoother
+lifecycle_manager_navigation: Activating velocity_smoother
+ros2 lifecycle get /velocity_smoother -> active [3]
+```
+
+话题链路也已确认：
+
+```text
+/control/cmd_vel:
+  publisher: /controller_server
+  subscription: /velocity_smoother
+
+/robot/cmd_vel:
+  publisher: /velocity_smoother
+  subscription: /robot/ackermann_drive_controller
+```
+
+发送 `map` 坐标下短目标时，`/control/cmd_vel` 和 `/robot/cmd_vel` 都出现非零速度，底盘命令链路已经打通。
+
+新的阻塞点：
+
+- 默认大地图 `barn_corridor_sim_001` 上，向 `x=0.0` 的目标会让 RPP 正常发出速度，但 `map -> base_footprint` 中机器人 x 从约 `-0.4` 漂到 `-1.75`，目标反而远离，最终 `Failed to make progress`。
+- 读取 `/mapping/lio/odom` 和 `/localization/global_odom` 后确认，FAST-LIO/global localization 当前在 map 坐标中的前进方向与预期目标方向不一致；`backend_status` 中还有 GPS anchor offset，例如 `offset=(-0.694,-0.015)`，会进一步改变 `global_odom`。
+- 换用小地图 `barn_corridor_sim_002` 后，map_server 可加载，Nav2 lifecycle 仍可激活，但运行中定位漂到地图边界附近，planner/controller 报：
+
+  ```text
+  Robot is out of bounds of the costmap!
+  GridBased plugin failed to plan calculation to (-0.40, 0.00): "Start pose is out of costmap!"
+  ```
+
+结论：当前端到端阻塞已经从「Nav2 启动 / 命令链路」转为「保存地图与在线定位坐标系对齐」。下一步不要继续盲发目标，应先固定一个坐标一致性策略：
+
+1. 暂时关闭 GPS offset，验证纯 FAST-LIO + wheel odom 的 `map -> odom` 是否稳定。
+2. 用同一次 FAST-LIO map 坐标重新导出地图，并记录导出时机器人初始 pose。
+3. 或新增一个 `map_alignment` 参数/节点，将保存地图 origin 与当前 localization map frame 对齐后，再进入 Nav2 目标验证。
+
+补充修正：`behavior_server` 的 recovery 速度输出也已 remap 到 `/control/cmd_vel`，避免 backup/spin 等恢复动作绕过 `velocity_smoother` 或发布到默认 `/cmd_vel`。
+
+**继续推进：坐标对齐入口已贯通**
+
+- `navigation.launch.py` 和 `slam_navigation.launch.py` 新增并透传：
+  - `map_align_x:=0.0`
+  - `map_align_y:=0.0`
+  - `map_align_yaw:=0.0`
+  - `gps_anchor_blend_weight:=0.0`
+- 这些参数会传给 `global_localization_backend.py`。其中 `map_align_*` 用于把在线 localization map frame 静态对齐到保存地图 frame；`gps_anchor_blend_weight` 用于显式控制 GPS anchor 对全局定位 offset 的影响。
+- 推荐下一轮验证命令先保持 GPS anchor 关闭：
+
+  ```bash
+  ROS_LOG_DIR=$PWD/log/ros ros2 launch robot_description slam_navigation.launch.py \
+    gui:=false rviz:=false gps_anchor_blend_weight:=0.0 \
+    map_align_x:=0.0 map_align_y:=0.0 map_align_yaw:=0.0
+  ```
+
+- 如果启动后 `map -> base_footprint` 的初始位姿仍不落在保存地图可通行区域内，就不要继续发导航目标；先根据 `/localization/global_odom` 与地图 YAML origin 计算 `map_align_*`，或用同一在线 map frame 重新导出地图。
+
 ### 2026-05-26：Codex 新增全局定位运行时验证脚本
 
 **本次处理：**
@@ -829,3 +993,76 @@ colcon build --packages-select robot_description
 
 - Nav2 预检后已清理相关 ROS 进程。
 - 最后检查未发现 Nav2、map_server、localization_mode_manager、lio_wheel_fusion、global_localization_backend 或 lio_tf_adapter 残留。
+
+### 2026-06-01：Claude Code 坐标系对齐修复与端到端验证
+
+**当前提交与工作区：**
+
+- 分支：`main`，领先 `origin/main` 5 个提交（含此前 Codex 未推的 3 个提交）
+- 最新提交：`b55c3cc feat: navigation launch 透传 map_align/gps_anchor 参数`
+- 工作区：仅本交接文件待提交
+
+**本次新增提交：**
+
+| 提交 | 说明 |
+|------|------|
+| `a323a95` | Nav2 Humble 适配与命令链路修复（此前 Codex 未提交） |
+| `b607286` | 地图 PGM 语义修正与 TF adapter SE2 平面投影（此前 Codex 未提交） |
+| `b1f5f23` | Nav2/PGM/TF adapter 契约测试更新（此前 Codex 未提交） |
+| `14af44d` | 坐标对齐机制 — GPS 默认偏移关闭 + map_align 参数 + pose sidecar |
+| `b55c3cc` | navigation launch 透传 map_align/gps_anchor 参数 |
+
+**核心修改：**
+
+| 文件 | 变更 |
+|------|------|
+| `scripts/lio_wheel_fusion.py` | `gps_blend_weight` 默认从 0.05 改为 0.0 |
+| `scripts/global_localization_backend.py` | `gps_anchor_blend_weight` 默认从 0.02 改为 0.0；新增 `map_align_x/y/yaw` 参数 |
+| `scripts/accumulate_lio_map.py` | 导出地图时记录机器人 pose 到 `_pose.json` sidecar |
+| `launch/navigation.launch.py` | 透传 `map_align_x/y/yaw`、`gps_anchor_blend_weight` 参数 |
+| `launch/slam_navigation.launch.py` | 透传 `map_align_x/y/yaw`、`gps_anchor_blend_weight` 参数 |
+| `src/robot_description/test/test_wheel_encoder_integration.py` | 新增坐标对齐参数契约测试 |
+
+**已确认解决的问题：**
+
+1. **GPS 偏移导致坐标系不对齐** — `gps_blend_weight` 和 `gps_anchor_blend_weight` 默认改为 0.0。运行时验证 `offset=(0.000,0.000)`，global_odom 与 FAST-LIO map frame 一致。
+
+2. **同一次会话中坐标系一致性** — LiDAR 链正常（~14000+ filtered points），FAST-LIO 发布 odom（x=-1.64），后端 offset=(0,0)，global_odom 与 map 坐标帧一致。
+
+3. **Nav2 小地图端到端** — `barn_corridor_sim_002`（7m x 5.7m），costmap 70x57，lifecycle 全部 active，目标接受并规划路径，无 out-of-bounds 错误。
+
+**已运行验证：**
+
+```bash
+python3 -m pytest src/robot_description/test/test_ackermann_kinematics.py src/robot_description/test/test_wheel_encoder_integration.py -q
+# 59 passed
+
+colcon build --packages-select robot_description
+# 1 package finished
+```
+
+全栈运行时验证：
+
+```text
+lifecycle: bt_navigator=active[3], velocity_smoother=active[3]
+backend_status: gps_anchor=fresh; offset=(0.000,0.000)
+tf map->base_footprint: translation=[0.27, 0.02, 0.07]
+costmap: 70x57 @ 0.1m/pix
+controller: Received a goal, begin computing control effort
+controller: Passing new path to controller
+```
+
+**仍需注意：**
+
+- `barn_corridor_sim_001`（90m x 215m）仍是大地图，不建议端到端导航。`barn_corridor_sim_002`（~7m x 6m）是当前调试用小地图。
+- GPS 偏移默认关闭利于同会话建图导航；如需 GPS 融合，启动时显式设 `gps_anchor_blend_weight:=0.02`。
+- `map_align_x/y/yaw` 参数已预留，用于跨会话手动对齐坐标帧。
+- 生成正式导航地图：同一次会话驱动机器人 → `accumulate_lio_map.py` 采集 → 立即用同一声明的地图启动 Nav2。
+- 首次运行全栈前务必 `pkill -9 -f gzserver` 清理残留 Gazebo 进程。
+
+**推荐下一步：**
+
+1. 用 `accumulate_lio_map.py` 在同一次会话中采集更完整轨迹，生成正式导航地图。
+2. 新地图生成后立即启动 Nav2 做端到端目标导航验证。
+3. 若需跨会话使用地图，用 `map_align` 参数手动对齐坐标帧。
+4. 长距离导航前在小范围闭合路线上测试 `loop_closure:=true`。

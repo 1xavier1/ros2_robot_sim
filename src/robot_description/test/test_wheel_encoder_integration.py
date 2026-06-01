@@ -2,6 +2,8 @@
 """Static integration checks for wheel encoder simulation wiring."""
 
 from pathlib import Path
+import importlib.util
+import math
 import re
 import xml.etree.ElementTree as ET
 
@@ -14,6 +16,14 @@ WORKSPACE_DIR = PACKAGE_DIR.parents[1]
 
 def read(path):
     return path.read_text(encoding="utf-8")
+
+
+def load_script_module(script_name):
+    script_path = WORKSPACE_DIR / "scripts" / script_name
+    spec = importlib.util.spec_from_file_location(script_name.replace(".py", ""), script_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def plugin_child_text(plugin, child_name):
@@ -323,12 +333,17 @@ def test_navigation_config_respects_ackermann_constraints():
     config = read(WORKSPACE_DIR / "config" / "navigation.yaml")
     launch = read(WORKSPACE_DIR / "launch" / "navigation.launch.py")
 
-    assert "max_vel_y: 0.0" in config
-    assert "min_vel_y: 0.0" in config
+    assert "allow_reversing: false" in config
+    assert "use_rotate_to_heading: false" in config
     assert "min_turning_radius: 0.78" in config
     assert "w_reverse_cost: 2.5" in config
-    assert "('/cmd_vel', '/control/cmd_vel')" in launch
-    assert "('/control/cmd_vel', '/robot/cmd_vel')" in launch
+    assert launch.count("('/cmd_vel', '/control/cmd_vel')") >= 2
+    assert "('cmd_vel', '/control/cmd_vel')" in launch
+    assert "('cmd_vel_smoothed', '/robot/cmd_vel')" in launch
+    assert "node_names.append('velocity_smoother')" in launch
+    assert "max_velocity: [0.5, 0.0, 1.0]" in config
+    assert "scale_velocities: true" in config
+    assert "speed_lim_vx" not in config
 
 
 def test_localization_verification_script_checks_filtered_odom():
@@ -488,6 +503,11 @@ def test_fast_lio2_config_and_launch_use_filtered_sensing_topics():
     assert "base_link" in config
     assert "FAST-LIO2 precheck failed" in launch
     assert "fast_lio" in launch
+    assert "static_transform_publisher" in launch
+    assert "'base_link'" in launch
+    assert "'laser_link'" in launch
+    assert "'0.25'" in launch
+    assert "'0.5235987756'" in launch
     assert "/mapping/lio/odom" in launch
     assert "/mapping/lio/map_points" in launch
 
@@ -577,6 +597,8 @@ def test_navigation_uses_filtered_lidar_and_vehicle_footprint_contract():
     launch = read(WORKSPACE_DIR / "launch" / "navigation.launch.py")
 
     assert "topic: /sensing/lidar/points" in config
+    assert "robot_base_frame: base_footprint" in config
+    assert "global_frame: map" in config
     assert "footprint:" in config
     assert "[0.275, 0.19]" in config
     assert "[-0.275, -0.19]" in config
@@ -610,18 +632,20 @@ def test_global_localization_runtime_verification_script_checks_nav2_chain():
     assert "global localization runtime verification passed" in script
 
 
-def test_navigation_controller_uses_humble_dwb_follow_path_contract():
+def test_navigation_controller_uses_humble_regulated_pure_pursuit_contract():
     config = read(WORKSPACE_DIR / "config" / "navigation.yaml")
 
     assert 'controller_plugins: ["FollowPath"]' in config
     assert "FollowPath:" in config
-    assert 'plugin: "dwb_core::DWBLocalPlanner"' in config
-    assert "BaseObstacle" in config
-    assert "GoalAlign" in config
-    assert "PathAlign" in config
-    assert "PathDist" in config
-    assert "GoalDist" in config
-    assert "\n    dwb_core:" not in config
+    assert (
+        'plugin: "nav2_regulated_pure_pursuit_controller::'
+        'RegulatedPurePursuitController"'
+    ) in config
+    assert "desired_linear_vel: 0.35" in config
+    assert "lookahead_dist: 0.6" in config
+    assert "use_rotate_to_heading: false" in config
+    assert "allow_reversing: false" in config
+    assert 'plugin: "dwb_core::DWBLocalPlanner"' not in config
 
 
 def test_navigation_planner_uses_humble_smac_plugin_name():
@@ -635,10 +659,28 @@ def test_navigation_bt_plugins_match_humble_installed_libraries():
     config = read(WORKSPACE_DIR / "config" / "navigation.yaml")
 
     assert "nav2_rate_controller_bt_node" in config
+    assert "nav2_goal_updated_condition_bt_node" in config
     assert "nav2_goal_updater_node_bt_node" in config
     assert "nav2_time_controller_bt_node" not in config
     assert "nav2_recovery_selector_bt_node" not in config
     assert "nav2_goal_behavior_bt_node" not in config
+
+
+def test_navigation_bt_xml_paths_use_humble_existing_files():
+    config = read(WORKSPACE_DIR / "config" / "navigation.yaml")
+    launch = read(WORKSPACE_DIR / "launch" / "navigation.launch.py")
+    through_poses_bt = read(
+        WORKSPACE_DIR
+        / "config"
+        / "navigate_through_poses_w_replanning_and_recovery_no_remove.xml"
+    )
+
+    assert "$(find-pkg-share nav2_bt_navigator)" not in config
+    assert "navigate_through_poses_w_replanning_and_recovery_no_remove.xml" in launch
+    assert "navigate_to_pose_w_replanning_and_recovery.xml" in config
+    assert "RemovePassedGoals" not in through_poses_bt
+    assert "ComputePathThroughPoses" in through_poses_bt
+    assert "FollowPath" in through_poses_bt
 
 
 def test_remote_extension_config_reserves_future_namespaces_without_runtime_dependency():
@@ -752,6 +794,13 @@ def test_lio_accumulator_exports_nav2_map_with_lower_left_origin():
     assert "np.flipud(grid)" in script
     assert "origin_y = min_y + height * resolution" not in script
     assert "origin: [{min_x:.6f}, {min_y:.6f}, 0.000000]" in script
+    assert "np.where(occ_mask, np.uint8(0), np.uint8(254))" in script
+
+
+def test_lio_map_exporter_uses_nav2_pgm_occupancy_values():
+    script = read(WORKSPACE_DIR / "scripts" / "export_lio_map_to_occupancy.py")
+
+    assert "np.where(grid > 0, np.uint8(0), np.uint8(254))" in script
 
 
 def test_lio_tf_adapter_publishes_map_to_odom_at_current_ros_time():
@@ -762,6 +811,24 @@ def test_lio_tf_adapter_publishes_map_to_odom_at_current_ros_time():
     assert "/mapping/lio/odom" not in script
     assert "t.header.stamp = self.get_clock().now().to_msg()" in script
     assert "t.header.stamp = lio.header.stamp" not in script
+
+
+def test_lio_tf_adapter_projects_global_pose_to_planar_nav2_tf():
+    module = load_script_module("lio_tf_adapter.py")
+
+    qx, qy, qz, qw = module.quat_from_yaw(math.pi / 2.0)
+    result = module.compose_planar_map_odom(
+        map_base=(2.0, 3.0, 1.2, qx, qy, qz, qw),
+        odom_base=(1.0, 0.0, -0.4, 0.0, 0.0, 0.0, 1.0),
+    )
+
+    x, y, z, out_qx, out_qy, out_qz, out_qw = result
+    assert abs(x - 2.0) < 1e-6
+    assert abs(y - 2.0) < 1e-6
+    assert z == 0.0
+    assert out_qx == 0.0
+    assert out_qy == 0.0
+    assert abs(module.yaw_from_quat(out_qx, out_qy, out_qz, out_qw) - math.pi / 2.0) < 1e-6
 
 
 def test_fused_localization_tf_chain_is_owned_by_navigation_launch():

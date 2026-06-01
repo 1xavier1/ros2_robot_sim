@@ -53,6 +53,22 @@ def generate_launch_description():
     )
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     launch_actions.append(Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='fast_lio_lidar_static_tf',
+        output='screen',
+        arguments=[
+            '--x', '0',
+            '--y', '0',
+            '--z', '0.25',
+            '--roll', '0',
+            '--pitch', '0.5235987756',
+            '--yaw', '0',
+            '--frame-id', 'base_link',
+            '--child-frame-id', 'laser_link',
+        ],
+    ))
+    launch_actions.append(Node(
         package=package_name,
         executable=executable_name,
         name='fast_lio2',

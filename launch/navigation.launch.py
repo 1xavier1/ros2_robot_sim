@@ -43,6 +43,11 @@ def generate_launch_description():
 
     config_file = os.path.join(pkg_share, 'config', 'navigation.yaml')
     mode_config_file = os.path.join(pkg_share, 'config', 'localization_modes.yaml')
+    nav_through_poses_bt_xml = os.path.join(
+        pkg_share,
+        'config',
+        'navigate_through_poses_w_replanning_and_recovery_no_remove.xml',
+    )
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     loop_closure = LaunchConfiguration('loop_closure', default='false')
     default_map_yaml = os.path.join(pkg_share, '..', '..', '..', '..', 'maps', 'barn_corridor_sim_001.yaml')
@@ -72,7 +77,6 @@ def generate_launch_description():
         ))
         return LaunchDescription(launch_actions)
 
-    missing_optional = find_missing_packages(OPTIONAL_NAV2_PACKAGES)
     node_names = [
         'map_server',
         'controller_server',
@@ -82,6 +86,9 @@ def generate_launch_description():
         'bt_navigator',
         'waypoint_follower',
     ]
+    missing_optional = find_missing_packages(OPTIONAL_NAV2_PACKAGES)
+    if not missing_optional:
+        node_names.append('velocity_smoother')
 
     nodes = [
         # Lifecycle manager for navigation
@@ -106,7 +113,6 @@ def generate_launch_description():
             parameters=[config_file, {'use_sim_time': use_sim_time}],
             remappings=[
                 ('/cmd_vel', '/control/cmd_vel'),
-                ('/control/cmd_vel', '/robot/cmd_vel'),
             ],
         ),
 
@@ -117,6 +123,9 @@ def generate_launch_description():
             name='planner_server',
             output='screen',
             parameters=[config_file, {'use_sim_time': use_sim_time}],
+            remappings=[
+                ('/cmd_vel', '/control/cmd_vel'),
+            ],
         ),
 
         # Smoother server
@@ -135,6 +144,9 @@ def generate_launch_description():
             name='behavior_server',
             output='screen',
             parameters=[config_file, {'use_sim_time': use_sim_time}],
+            remappings=[
+                ('/cmd_vel', '/control/cmd_vel'),
+            ],
         ),
 
         # BT Navigator
@@ -143,7 +155,10 @@ def generate_launch_description():
             executable='bt_navigator',
             name='bt_navigator',
             output='screen',
-            parameters=[config_file, {'use_sim_time': use_sim_time}],
+            parameters=[config_file, {
+                'use_sim_time': use_sim_time,
+                'default_nav_through_poses_bt_xml': nav_through_poses_bt_xml,
+            }],
             remappings=[
                 ('/goal_pose', '/goal_pose'),
             ],
@@ -170,8 +185,8 @@ def generate_launch_description():
                 output='screen',
                 parameters=[config_file, {'use_sim_time': use_sim_time}],
                 remappings=[
-                    ('/cmd_vel_raw', '/control/cmd_vel'),
-                    ('/cmd_vel_smooth', '/robot/cmd_vel'),
+                    ('cmd_vel', '/control/cmd_vel'),
+                    ('cmd_vel_smoothed', '/robot/cmd_vel'),
                 ],
             )
         )

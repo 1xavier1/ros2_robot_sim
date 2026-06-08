@@ -85,6 +85,34 @@ def select_output_stamp(lio_stamp, current_stamp, use_lio_yaw):
     return current_stamp
 
 
+def maybe_refresh_anchor_and_pose(
+    lio_anchor,
+    wheel_anchor,
+    wheel_pose,
+    lio_pose,
+    use_lio_yaw,
+    max_error,
+):
+    fused_pose = compose_wheel_lio_pose(
+        lio_anchor,
+        wheel_anchor,
+        wheel_pose,
+        lio_pose,
+        use_lio_yaw=use_lio_yaw,
+    )
+    if use_lio_yaw and should_refresh_lio_anchor(fused_pose, lio_pose, max_error):
+        lio_anchor = lio_pose
+        wheel_anchor = wheel_pose
+        fused_pose = compose_wheel_lio_pose(
+            lio_anchor,
+            wheel_anchor,
+            wheel_pose,
+            lio_pose,
+            use_lio_yaw=use_lio_yaw,
+        )
+    return lio_anchor, wheel_anchor, fused_pose
+
+
 class WheelLioFusion(Node):
     def __init__(self):
         super().__init__("wheel_lio_fusion")
@@ -171,24 +199,15 @@ class WheelLioFusion(Node):
             self.wheel_anchor = wheel_pose
 
         use_lio_yaw = self.is_fresh(self.latest_lio_stamp, "lio_timeout_sec")
-        fused_pose = compose_wheel_lio_pose(
+        max_error = float(self.get_parameter("max_lio_translation_error").value)
+        self.lio_anchor, self.wheel_anchor, fused_pose = maybe_refresh_anchor_and_pose(
             self.lio_anchor,
             self.wheel_anchor,
             wheel_pose,
             lio_pose,
-            use_lio_yaw=use_lio_yaw,
+            use_lio_yaw,
+            max_error,
         )
-        max_error = float(self.get_parameter("max_lio_translation_error").value)
-        if should_refresh_lio_anchor(fused_pose, lio_pose, max_error):
-            self.lio_anchor = lio_pose
-            self.wheel_anchor = wheel_pose
-            fused_pose = compose_wheel_lio_pose(
-                self.lio_anchor,
-                self.wheel_anchor,
-                wheel_pose,
-                lio_pose,
-                use_lio_yaw=use_lio_yaw,
-            )
 
         fused = Odometry()
         fused.header.stamp = select_output_stamp(

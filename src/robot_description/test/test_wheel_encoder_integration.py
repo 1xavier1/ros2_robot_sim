@@ -977,3 +977,41 @@ def test_wheel_lio_fusion_uses_current_stamp_when_lio_yaw_is_stale():
         module.select_output_stamp(old_lio_stamp, current_stamp, False)
         is current_stamp
     )
+
+
+def test_wheel_lio_fusion_recomputes_current_pose_after_anchor_refresh():
+    module = load_script_module("wheel_lio_fusion.py")
+
+    lio_anchor, wheel_anchor, fused_pose = module.maybe_refresh_anchor_and_pose(
+        lio_anchor=(0.0, 0.0, 0.0),
+        wheel_anchor=(0.0, 0.0, 0.0),
+        wheel_pose=(20.0, 0.0, 0.4),
+        lio_pose=(1.0, 2.0, 0.3),
+        use_lio_yaw=True,
+        max_error=1.0,
+    )
+
+    assert lio_anchor == (1.0, 2.0, 0.3)
+    assert wheel_anchor == (20.0, 0.0, 0.4)
+    assert abs(fused_pose[0] - 1.0) < 1e-6
+    assert abs(fused_pose[1] - 2.0) < 1e-6
+    assert abs(fused_pose[2] - 0.3) < 1e-6
+
+
+def test_wheel_lio_fusion_does_not_refresh_anchor_when_lio_yaw_is_stale():
+    module = load_script_module("wheel_lio_fusion.py")
+
+    lio_anchor, wheel_anchor, fused_pose = module.maybe_refresh_anchor_and_pose(
+        lio_anchor=(0.0, 0.0, 0.0),
+        wheel_anchor=(0.0, 0.0, 0.0),
+        wheel_pose=(20.0, 0.0, 0.4),
+        lio_pose=(1.0, 2.0, 0.3),
+        use_lio_yaw=False,
+        max_error=1.0,
+    )
+
+    assert lio_anchor == (0.0, 0.0, 0.0)
+    assert wheel_anchor == (0.0, 0.0, 0.0)
+    assert abs(fused_pose[0] - 20.0) < 1e-6
+    assert abs(fused_pose[1] - 0.0) < 1e-6
+    assert abs(fused_pose[2] - 0.4) < 1e-6

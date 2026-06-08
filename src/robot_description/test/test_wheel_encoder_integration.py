@@ -878,3 +878,35 @@ def test_rviz_config_opens_with_odom_baseline_and_lio_overlays():
         display.get("Class") != "rviz_default_plugins/Path"
         for display in displays
     )
+
+
+def test_fast_lio_drift_diagnostic_contract():
+    script = read(WORKSPACE_DIR / "scripts" / "fast_lio_drift_diagnostic.py")
+
+    assert "/mapping/lio/odom" in script
+    assert "/robot/odom" in script
+    assert "/localization/wheel_lio_odom" in script
+    assert "/robot/ground_truth/odom" in script
+    assert "reference_topic" in script
+    assert "compute_delta_metrics" in script
+    assert "scale_ratio" in script
+    assert "drift_per_meter" in script
+    assert ".json" in script
+
+
+def test_fast_lio_drift_diagnostic_computes_scale_and_drift():
+    module = load_script_module("fast_lio_drift_diagnostic.py")
+
+    result = module.compute_delta_metrics(
+        reference_start=(0.0, 0.0, 0.0),
+        reference_end=(4.0, 0.0, 0.0),
+        estimate_start=(0.0, 0.0, 0.0),
+        estimate_end=(2.0, 0.0, 0.1),
+    )
+
+    assert abs(result["reference_distance"] - 4.0) < 1e-6
+    assert abs(result["estimate_distance"] - 2.0) < 1e-6
+    assert abs(result["scale_ratio"] - 0.5) < 1e-6
+    assert abs(result["translation_error"] - 2.0) < 1e-6
+    assert abs(result["drift_per_meter"] - 0.5) < 1e-6
+    assert abs(result["yaw_error"] - 0.1) < 1e-6

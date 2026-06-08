@@ -912,3 +912,32 @@ def test_fast_lio_drift_diagnostic_computes_scale_and_drift():
     assert abs(result["translation_error"] - 2.0) < 1e-6
     assert abs(result["drift_per_meter"] - 0.5) < 1e-6
     assert abs(result["yaw_error"] - 0.1) < 1e-6
+
+
+def test_wheel_lio_fusion_contract():
+    script = read(WORKSPACE_DIR / "scripts" / "wheel_lio_fusion.py")
+
+    assert "/mapping/lio/odom" in script
+    assert "/robot/odom" in script
+    assert "/localization/gps/gated" in script
+    assert "/localization/wheel_lio_odom" in script
+    assert "/localization/wheel_lio_status" in script
+    assert "gps_anchor_blend_weight" in script
+    assert "max_lio_translation_error" in script
+    assert "compose_wheel_lio_pose" in script
+
+
+def test_wheel_lio_fusion_uses_wheel_translation_and_lio_yaw():
+    module = load_script_module("wheel_lio_fusion.py")
+
+    fused = module.compose_wheel_lio_pose(
+        lio_anchor=(10.0, 5.0, 0.2),
+        wheel_anchor=(1.0, 1.0, 0.0),
+        wheel_current=(3.0, 1.0, 0.0),
+        lio_current=(10.4, 5.1, 0.25),
+        use_lio_yaw=True,
+    )
+
+    assert abs(fused[0] - 11.9601331557) < 1e-6
+    assert abs(fused[1] - 5.3973386616) < 1e-6
+    assert abs(fused[2] - 0.25) < 1e-6

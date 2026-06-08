@@ -925,6 +925,7 @@ def test_wheel_lio_fusion_contract():
     assert "gps_anchor_blend_weight" in script
     assert "max_lio_translation_error" in script
     assert "compose_wheel_lio_pose" in script
+    assert "lio=stale_waiting_anchor" in script
 
 
 def test_wheel_lio_fusion_uses_wheel_translation_and_lio_yaw():
@@ -1015,3 +1016,10 @@ def test_wheel_lio_fusion_does_not_refresh_anchor_when_lio_yaw_is_stale():
     assert abs(fused_pose[0] - 20.0) < 1e-6
     assert abs(fused_pose[1] - 0.0) < 1e-6
     assert abs(fused_pose[2] - 0.4) < 1e-6
+
+
+def test_wheel_lio_fusion_only_initializes_anchor_from_fresh_lio():
+    module = load_script_module("wheel_lio_fusion.py")
+
+    assert module.can_initialize_anchor(use_lio_yaw=True)
+    assert not module.can_initialize_anchor(use_lio_yaw=False)

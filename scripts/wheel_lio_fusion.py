@@ -85,6 +85,10 @@ def select_output_stamp(lio_stamp, current_stamp, use_lio_yaw):
     return current_stamp
 
 
+def can_initialize_anchor(use_lio_yaw):
+    return use_lio_yaw
+
+
 def maybe_refresh_anchor_and_pose(
     lio_anchor,
     wheel_anchor,
@@ -192,13 +196,18 @@ class WheelLioFusion(Node):
             self.publish_status("wheel=stale")
             return
 
+        use_lio_yaw = self.is_fresh(self.latest_lio_stamp, "lio_timeout_sec")
+        if self.lio_anchor is None or self.wheel_anchor is None:
+            if not can_initialize_anchor(use_lio_yaw):
+                self.publish_status("lio=stale_waiting_anchor; wheel=fresh")
+                return
+
         lio_pose = pose_tuple(self.latest_lio)
         wheel_pose = pose_tuple(self.latest_wheel)
         if self.lio_anchor is None or self.wheel_anchor is None:
             self.lio_anchor = lio_pose
             self.wheel_anchor = wheel_pose
 
-        use_lio_yaw = self.is_fresh(self.latest_lio_stamp, "lio_timeout_sec")
         max_error = float(self.get_parameter("max_lio_translation_error").value)
         self.lio_anchor, self.wheel_anchor, fused_pose = maybe_refresh_anchor_and_pose(
             self.lio_anchor,

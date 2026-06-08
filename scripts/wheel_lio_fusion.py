@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Fuse wheel translation, FAST-LIO yaw, and optional gated GPS anchoring."""
 
-import copy
 import math
 
 import rclpy
@@ -68,6 +67,22 @@ def compose_wheel_lio_pose(
     else:
         yaw = lio_anchor[2] + wrap_angle(wheel_current[2] - wheel_anchor[2])
     return (x, y, wrap_angle(yaw))
+
+
+def should_refresh_lio_anchor(fused_pose, lio_pose, max_error):
+    if max_error <= 0.0:
+        return False
+    translation_error = math.hypot(
+        fused_pose[0] - lio_pose[0],
+        fused_pose[1] - lio_pose[1],
+    )
+    return translation_error > max_error
+
+
+def select_output_stamp(lio_stamp, current_stamp, use_lio_yaw):
+    if use_lio_yaw:
+        return lio_stamp
+    return current_stamp
 
 
 class WheelLioFusion(Node):
@@ -163,10 +178,24 @@ class WheelLioFusion(Node):
             lio_pose,
             use_lio_yaw=use_lio_yaw,
         )
-        self.refresh_anchor_if_lio_drift_exceeds_limit(fused_pose, lio_pose, wheel_pose)
+        max_error = float(self.get_parameter("max_lio_translation_error").value)
+        if should_refresh_lio_anchor(fused_pose, lio_pose, max_error):
+            self.lio_anchor = lio_pose
+            self.wheel_anchor = wheel_pose
+            fused_pose = compose_wheel_lio_pose(
+                self.lio_anchor,
+                self.wheel_anchor,
+                wheel_pose,
+                lio_pose,
+                use_lio_yaw=use_lio_yaw,
+            )
 
-        fused = copy.deepcopy(self.latest_lio)
-        fused.header.stamp = self.latest_lio.header.stamp
+        fused = Odometry()
+        fused.header.stamp = select_output_stamp(
+            self.latest_lio.header.stamp,
+            self.get_clock().now().to_msg(),
+            use_lio_yaw,
+        )
         fused.header.frame_id = "map"
         fused.child_frame_id = "base_link"
         fused.pose.pose.position.x = fused_pose[0] + self.global_offset[0]
@@ -183,21 +212,6 @@ class WheelLioFusion(Node):
         self.odom_pub.publish(fused)
         lio_state = "lio_yaw=fresh" if use_lio_yaw else "lio_yaw=fallback"
         self.publish_status(f"{lio_state}; wheel=fresh")
-
-    def refresh_anchor_if_lio_drift_exceeds_limit(
-        self,
-        fused_pose,
-        lio_pose,
-        wheel_pose,
-    ):
-        max_error = float(self.get_parameter("max_lio_translation_error").value)
-        if max_error <= 0.0:
-            return
-        error = math.hypot(fused_pose[0] - lio_pose[0], fused_pose[1] - lio_pose[1])
-        if error <= max_error:
-            return
-        self.lio_anchor = lio_pose
-        self.wheel_anchor = wheel_pose
 
     def apply_gps_anchor(self, fused):
         if self.latest_gps is None or self.gps_origin is None:

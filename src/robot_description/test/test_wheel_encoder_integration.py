@@ -941,3 +941,39 @@ def test_wheel_lio_fusion_uses_wheel_translation_and_lio_yaw():
     assert abs(fused[0] - 11.9601331557) < 1e-6
     assert abs(fused[1] - 5.3973386616) < 1e-6
     assert abs(fused[2] - 0.25) < 1e-6
+
+
+def test_wheel_lio_fusion_refreshes_anchor_when_translation_error_is_large():
+    module = load_script_module("wheel_lio_fusion.py")
+
+    assert module.should_refresh_lio_anchor(
+        fused_pose=(10.0, 0.0, 0.0),
+        lio_pose=(0.0, 0.0, 0.0),
+        max_error=1.0,
+    )
+    assert not module.should_refresh_lio_anchor(
+        fused_pose=(0.5, 0.0, 0.0),
+        lio_pose=(0.0, 0.0, 0.0),
+        max_error=1.0,
+    )
+    assert not module.should_refresh_lio_anchor(
+        fused_pose=(10.0, 0.0, 0.0),
+        lio_pose=(0.0, 0.0, 0.0),
+        max_error=0.0,
+    )
+
+
+def test_wheel_lio_fusion_uses_current_stamp_when_lio_yaw_is_stale():
+    module = load_script_module("wheel_lio_fusion.py")
+
+    old_lio_stamp = object()
+    current_stamp = object()
+
+    assert (
+        module.select_output_stamp(old_lio_stamp, current_stamp, True)
+        is old_lio_stamp
+    )
+    assert (
+        module.select_output_stamp(old_lio_stamp, current_stamp, False)
+        is current_stamp
+    )

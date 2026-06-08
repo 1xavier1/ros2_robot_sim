@@ -892,6 +892,8 @@ def test_fast_lio_drift_diagnostic_contract():
     assert "scale_ratio" in script
     assert "drift_per_meter" in script
     assert ".json" in script
+    assert "duration_sec" in script
+    assert "rclpy.spin_once" in script or "Duration" in script
 
 
 def test_fast_lio_drift_diagnostic_computes_scale_and_drift():

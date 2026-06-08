@@ -12,6 +12,7 @@ from pathlib import Path
 
 import rclpy
 from nav_msgs.msg import Odometry
+from rclpy.duration import Duration
 from rclpy.node import Node
 
 
@@ -168,6 +169,13 @@ def parse_args():
         default=1.0,
         help="Seconds between JSON report writes.",
     )
+    parser.add_argument(
+        "--duration-sec",
+        dest="duration_sec",
+        type=float,
+        default=30.0,
+        help="Seconds to collect odometry before exporting and exiting.",
+    )
     return parser.parse_args()
 
 
@@ -176,7 +184,9 @@ def main():
     rclpy.init()
     node = FastLioDriftDiagnostic(args)
     try:
-        rclpy.spin(node)
+        deadline = node.get_clock().now() + Duration(seconds=args.duration_sec)
+        while rclpy.ok() and node.get_clock().now() < deadline:
+            rclpy.spin_once(node, timeout_sec=0.1)
     finally:
         node.write_report()
         node.destroy_node()

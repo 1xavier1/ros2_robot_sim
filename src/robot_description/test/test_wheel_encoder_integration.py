@@ -438,7 +438,7 @@ def test_sensor_mount_config_documents_lidar_extrinsics():
     assert config["lidar"]["parent_frame"] == "base_link"
     assert config["lidar"]["frame"] == "laser_link"
     assert config["lidar"]["xyz"] == [0.0, 0.0, 0.25]
-    assert config["lidar"]["rpy"] == [0.0, 0.524, 0.0]
+    assert config["lidar"]["rpy"] == [0.0, 0.0, 0.0]
     assert config["lidar"]["min_range"] == 0.1
     assert config["lidar"]["max_range"] == 100.0
     assert config["lidar"]["horizontal_fov"] == 6.28318
@@ -455,7 +455,7 @@ def test_sensor_mount_config_documents_lidar_extrinsics():
     assert laser_joint.find("parent").attrib["link"] == "base_link"
     assert laser_joint.find("child").attrib["link"] == "laser_link"
     assert laser_joint.find("origin").attrib["xyz"] == "0 0 ${lidar_height}"
-    assert laser_joint.find("origin").attrib["rpy"] == "0 0.524 0"
+    assert laser_joint.find("origin").attrib["rpy"] == "0 0 0"
 
     assert config["imu"]["parent_frame"] == "base_link"
     assert config["imu"]["frame"] == "imu_link"
@@ -469,6 +469,16 @@ def test_sensor_mount_config_documents_lidar_extrinsics():
     assert "unit rad" in config_text
     assert "Right-hand rule" in config_text
     assert "X forward positive" in config_text
+
+
+def test_simulated_lidar_mount_keeps_forward_rays_available_for_lio():
+    config = yaml.safe_load(read(WORKSPACE_DIR / "config" / "sensor_mount.yaml"))
+    lidar = config["lidar"]
+
+    pitch = float(lidar["rpy"][1])
+    vertical_fov = float(lidar["vertical_fov"])
+
+    assert abs(pitch) <= vertical_fov / 2.0
 
 
 def test_sensing_bridge_routes_lidar_through_self_filter():
@@ -507,7 +517,7 @@ def test_fast_lio2_config_and_launch_use_filtered_sensing_topics():
     assert "'base_link'" in launch
     assert "'laser_link'" in launch
     assert "'0.25'" in launch
-    assert "'0.5235987756'" in launch
+    assert "'--pitch', '0'" in launch
     assert "/mapping/lio/odom" in launch
     assert "/mapping/lio/map_points" in launch
 
@@ -606,7 +616,7 @@ def test_navigation_uses_filtered_lidar_and_vehicle_footprint_contract():
     assert "/control/cmd_vel" in script
     assert "Navigation2 precheck failed" in script
     assert "Created controller : FollowPath" in script
-    assert "map->base_link TF is still required" in script
+    assert "map->base_footprint TF is still required" in script
     assert 'grep -q "Created controller : FollowPath" <<< "$OUTPUT"' in script
     assert 'TOPICS="$(timeout 8s ros2 topic list 2>/dev/null || true)"' in script
     assert "DeclareLaunchArgument('map'" in launch
@@ -623,13 +633,26 @@ def test_global_localization_runtime_verification_script_checks_nav2_chain():
     assert "/localization/loop_closure_status" in script
     assert "/robot/odom" in script
     assert "/mapping/lio/odom" in script
-    assert "tf2_echo map base_link" in script
+    assert "tf2_echo map base_footprint" in script
     assert "Robot is out of bounds of the costmap" in script
     assert "ros2 topic echo" in script
     assert "ROS_LOG_DIR" in script
     assert "set +u" in script
     assert "set -u" in script
     assert "global localization runtime verification passed" in script
+
+
+def test_navigation_launch_starts_wheel_lio_fusion():
+    launch = read(WORKSPACE_DIR / "launch" / "navigation.launch.py")
+    backend = read(WORKSPACE_DIR / "scripts" / "global_localization_backend.py")
+    runtime_check = read(WORKSPACE_DIR / "scripts" / "verify_global_localization_runtime.sh")
+
+    assert "wheel_lio_fusion.py" in launch
+    assert "/localization/wheel_lio_odom" in launch
+    assert "input_odom_topic" in backend
+    assert "/localization/wheel_lio_odom" in backend
+    assert "/localization/wheel_lio_status" in runtime_check
+    assert "FAST-LIO + wheel/GPS wheel-LIO odom" in runtime_check
 
 
 def test_navigation_controller_uses_humble_regulated_pure_pursuit_contract():
@@ -761,6 +784,48 @@ def test_fast_lio_config_uses_spark_fast_lio_parameter_schema():
     assert "('imu', '/sensing/imu/data')" in launch
     assert "('odometry', '/mapping/lio/odom')" in launch
     assert "('cloud_registered', '/mapping/lio/map_points')" in launch
+    assert "('/tf', '/mapping/lio/tf')" in launch
+
+
+def test_fast_lio_lidar_imu_extrinsics_match_sensor_mount():
+    fast_lio = yaml.safe_load(read(WORKSPACE_DIR / "config" / "fast_lio.yaml"))
+    sensor_mount = yaml.safe_load(read(WORKSPACE_DIR / "config" / "sensor_mount.yaml"))
+
+    mapping = fast_lio["/**"]["ros__parameters"]["mapping"]
+    lidar = sensor_mount["lidar"]
+    imu = sensor_mount["imu"]
+
+    expected_translation = [
+        lidar["xyz"][axis] - imu["xyz"][axis]
+        for axis in range(3)
+    ]
+    for actual, expected in zip(mapping["extrinsic_T"], expected_translation):
+        assert math.isclose(actual, expected, abs_tol=1e-6)
+
+    roll, pitch, yaw = lidar["rpy"]
+    cr = math.cos(roll)
+    sr = math.sin(roll)
+    cp = math.cos(pitch)
+    sp = math.sin(pitch)
+    cy = math.cos(yaw)
+    sy = math.sin(yaw)
+    expected_rotation = [
+        cy * cp, cy * sp * sr - sy * cr, cy * sp * cr + sy * sr,
+        sy * cp, sy * sp * sr + cy * cr, sy * sp * cr - cy * sr,
+        -sp, cp * sr, cp * cr,
+    ]
+
+    for actual, expected in zip(mapping["extrinsic_R"], expected_rotation):
+        assert math.isclose(actual, expected, abs_tol=1e-4)
+
+
+def test_fast_lio_dynamic_tf_is_isolated_from_nav2_tf_tree():
+    launch = read(WORKSPACE_DIR / "launch" / "fast_lio2.launch.py")
+    runtime_check = read(WORKSPACE_DIR / "scripts" / "verify_global_localization_runtime.sh")
+
+    assert "('/tf', '/mapping/lio/tf')" in launch
+    assert "tf2_echo map base_footprint" in runtime_check
+    assert "tf2_echo map base_link" not in runtime_check
 
 
 def test_simulated_lidar_density_supports_fast_lio_mapping():
@@ -801,6 +866,139 @@ def test_lio_map_exporter_uses_nav2_pgm_occupancy_values():
     script = read(WORKSPACE_DIR / "scripts" / "export_lio_map_to_occupancy.py")
 
     assert "np.where(grid > 0, np.uint8(0), np.uint8(254))" in script
+
+
+def test_odom_projected_map_exporter_contract():
+    script = read(WORKSPACE_DIR / "scripts" / "export_odom_projected_map.py")
+
+    assert "/sensing/lidar/points" in script
+    assert "/robot/odom" in script
+    assert "/mapping/lio/odom" in script
+    assert "diagnostics" in script
+    assert "PointCloud2" in script
+    assert "Odometry" in script
+    assert ".pgm" in script
+    assert ".yaml" in script
+    assert ".json" in script
+    assert "sensor_mount.yaml" in script
+    assert "vehicle_geometry.yaml" in script
+    assert "raytrace_cells" in script
+    assert "max_range" in script
+    assert "self_filter" in script
+    assert "filter_stats" in script
+    assert "height_high_points" in script
+    assert "occupied_free_ratio" in script
+
+
+def test_odom_projected_map_transforms_body_points_to_odom_frame():
+    module = load_script_module("export_odom_projected_map.py")
+
+    transformed = module.transform_body_points(
+        [(1.0, 0.0, 0.2), (0.0, 2.0, 0.3)],
+        pose=(10.0, -2.0, math.pi / 2.0),
+    )
+
+    assert abs(transformed[0][0] - 10.0) < 1e-6
+    assert abs(transformed[0][1] - -1.0) < 1e-6
+    assert abs(transformed[1][0] - 8.0) < 1e-6
+    assert abs(transformed[1][1] - -2.0) < 1e-6
+
+
+def test_odom_projected_map_applies_lidar_planar_extrinsic():
+    module = load_script_module("export_odom_projected_map.py")
+
+    transformed = module.transform_lidar_points_to_odom(
+        [(1.0, 0.0, 0.2)],
+        odom_pose=(10.0, -2.0, math.pi / 2.0),
+        lidar_xyz=(0.5, 0.0, 0.25),
+        lidar_yaw=0.0,
+    )
+
+    assert abs(transformed[0][0] - 10.0) < 1e-6
+    assert abs(transformed[0][1] - -0.5) < 1e-6
+
+
+def test_odom_projected_map_raytraces_free_cells_before_occupied_endpoint():
+    module = load_script_module("export_odom_projected_map.py")
+
+    cells = module.raytrace_cells((0, 0), (3, 0))
+
+    assert cells == [(0, 0), (1, 0), (2, 0), (3, 0)]
+
+
+def test_odom_projected_map_filters_lidar_points_by_planar_range():
+    module = load_script_module("export_odom_projected_map.py")
+
+    points = module.filter_lidar_points_by_range(
+        [(1.0, 0.0, 0.0), (20.0, 0.0, 0.0), (0.01, 0.0, 0.0)],
+        min_range=0.1,
+        max_range=15.0,
+    )
+
+    assert points == [(1.0, 0.0, 0.0)]
+
+
+def test_odom_projected_map_filters_vehicle_self_hits_in_base_frame():
+    module = load_script_module("export_odom_projected_map.py")
+
+    points = module.filter_points_in_box(
+        [(-0.1, 0.0, 0.1), (0.6, 0.0, 0.1), (0.0, 0.4, 0.1)],
+        box_min=(-0.35, -0.25, -0.05),
+        box_max=(0.35, 0.25, 0.45),
+    )
+
+    assert points == [(0.6, 0.0, 0.1), (0.0, 0.4, 0.1)]
+
+
+def test_odom_projected_map_grid_uses_unknown_free_and_occupied_values():
+    module = load_script_module("export_odom_projected_map.py")
+
+    grid = module.make_occupancy_grid(
+        occupied_cells={(3, 0)},
+        free_cells={(0, 0), (1, 0), (2, 0)},
+        width=4,
+        height=2,
+    )
+
+    assert grid[1, 3] == 0
+    assert grid[1, 0] == 254
+    assert grid[0, 0] == 205
+
+
+def test_odom_projected_map_splits_height_filter_stats():
+    module = load_script_module("export_odom_projected_map.py")
+
+    in_range, stats = module.filter_points_by_height(
+        [(1.0, 0.0, -0.1), (2.0, 0.0, 0.5), (3.0, 0.0, 2.0)],
+        min_z=0.0,
+        max_z=1.6,
+    )
+
+    assert in_range == [(2.0, 0.0, 0.5)]
+    assert stats == {
+        "height_low_points": 1,
+        "height_points": 1,
+        "height_high_points": 1,
+    }
+
+
+def test_odom_projected_map_free_evidence_can_clear_weak_occupied_cells():
+    module = load_script_module("export_odom_projected_map.py")
+
+    occupied = {(1, 0): 2, (2, 0): 10}
+    free = {(1, 0): 20, (2, 0): 3, (3, 0): 5}
+    occupied_cells, free_cells = module.classify_cells(
+        occupied,
+        free,
+        min_hits=2,
+        min_free_hits=2,
+        occupied_free_ratio=0.5,
+    )
+
+    assert (1, 0) not in occupied_cells
+    assert (1, 0) in free_cells
+    assert (2, 0) in occupied_cells
+    assert (3, 0) in free_cells
 
 
 def test_lio_tf_adapter_publishes_map_to_odom_at_current_ros_time():

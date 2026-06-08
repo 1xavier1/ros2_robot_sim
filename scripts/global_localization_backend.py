@@ -32,6 +32,7 @@ class GlobalLocalizationBackend(Node):
         self.declare_parameter("map_align_y", 0.0)
         self.declare_parameter("map_align_yaw", 0.0)
         self.declare_parameter("enable_loop_closure", False)
+        self.declare_parameter("input_odom_topic", "/localization/wheel_lio_odom")
         self.declare_parameter("loop_keyframe_distance", 1.0)
         self.declare_parameter("loop_candidate_radius", 0.75)
         self.declare_parameter("loop_min_travel_distance", 8.0)
@@ -68,9 +69,10 @@ class GlobalLocalizationBackend(Node):
             10,
         )
 
+        input_odom_topic = str(self.get_parameter("input_odom_topic").value)
         self.create_subscription(
             Odometry,
-            "/localization/fused_odom",
+            input_odom_topic,
             self.on_fused_odom,
             10,
         )

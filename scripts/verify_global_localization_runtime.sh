@@ -28,18 +28,20 @@ check_topic_once() {
 check_topic_once "/mapping/lio/odom" "FAST-LIO odometry"
 check_topic_once "/robot/odom" "wheel odometry"
 check_topic_once "/localization/fused_odom" "FAST-LIO + wheel/GPS fused odom"
+check_topic_once "/localization/wheel_lio_odom" "FAST-LIO + wheel/GPS wheel-LIO odom"
+check_topic_once "/localization/wheel_lio_status" "wheel-LIO fusion status"
 check_topic_once "/localization/global_odom" "global localization backend odom"
 check_topic_once "/localization/fusion_status" "fusion input status"
 check_topic_once "/localization/backend_status" "global backend status"
 check_topic_once "/localization/loop_closure_status" "loop closure status"
 
 TF_OUTPUT="$(
-    timeout "$TF_TIMEOUT" ros2 run tf2_ros tf2_echo map base_link \
+    timeout "$TF_TIMEOUT" ros2 run tf2_ros tf2_echo map base_footprint \
         --ros-args -p use_sim_time:=true 2>&1 || true
 )"
 echo "$TF_OUTPUT"
 if ! grep -Eq "At time|Translation:" <<< "$TF_OUTPUT"; then
-    echo "map -> base_link TF is not available" >&2
+    echo "map -> base_footprint TF is not available" >&2
     exit 1
 fi
 

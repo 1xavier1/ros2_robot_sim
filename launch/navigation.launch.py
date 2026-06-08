@@ -258,6 +258,18 @@ def generate_launch_description():
         parameters=[{'use_sim_time': use_sim_time}],
     ))
 
+    # Wheel-LIO fusion: FAST-LIO odom blended with wheel/GPS constraints.
+    nodes.append(Node(
+        package='robot_description',
+        executable='wheel_lio_fusion.py',
+        name='wheel_lio_fusion',
+        output='screen',
+        parameters=[{
+            'use_sim_time': use_sim_time,
+            'gps_anchor_blend_weight': gps_anchor_blend_weight,
+        }],
+    ))
+
     # Global backend: bounded GPS anchor and explicit loop-closure status
     nodes.append(Node(
         package='robot_description',
@@ -271,6 +283,7 @@ def generate_launch_description():
             'map_align_y': map_align_y,
             'map_align_yaw': map_align_yaw,
             'gps_anchor_blend_weight': gps_anchor_blend_weight,
+            'input_odom_topic': '/localization/wheel_lio_odom',
         }],
     ))
 

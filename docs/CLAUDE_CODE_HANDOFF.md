@@ -1066,3 +1066,55 @@ controller: Passing new path to controller
 2. 新地图生成后立即启动 Nav2 做端到端目标导航验证。
 3. 若需跨会话使用地图，用 `map_align` 参数手动对齐坐标帧。
 4. 长距离导航前在小范围闭合路线上测试 `loop_closure:=true`。
+
+### 2026-06-09：Codex 实现 wheel-LIO 鲁棒状态机
+
+**本次处理：**
+
+| 文件 | 变更 |
+|------|------|
+| `scripts/wheel_lio_fusion.py` | 增加 motion consistency state machine、动态 wheel weight、状态化 hold-last-trusted 行为 |
+| `src/robot_description/test/test_wheel_encoder_integration.py` | 增加 motion delta、状态分类、权重混合、节点级运行边界和生产输入契约测试 |
+
+**状态机行为：**
+
+- 输出 topic 保持 `/localization/wheel_lio_odom`。
+- status topic `/localization/wheel_lio_status` 增加 `state=`、`wheel_weight=`、`reason=`。
+- 状态包含 `normal`、`turning_caution`、`wheel_suspect`、`lio_suspect`、`degraded`。
+- LIO stale 时不再用旧 LIO delta 累计坏帧，保持 wheel fallback。
+- `lio_suspect` 不刷新 LIO anchor，避免把可疑 LIO 跳点写入 anchor。
+- `degraded` 且已有可信 odom 时复制并刷新 stamp 后发布，避免下游因旧 stamp 认为定位停滞。
+- `/robot/ground_truth/odom` 仍只用于诊断和 exporter reference，不进入生产融合。
+
+**验证：**
+
+```bash
+python3 -m pytest src/robot_description/test/test_ackermann_kinematics.py src/robot_description/test/test_wheel_encoder_integration.py -q
+# 94 passed
+
+python3 -m py_compile scripts/wheel_lio_fusion.py scripts/export_odom_projected_map.py scripts/fast_lio_drift_diagnostic.py launch/fast_lio2.launch.py
+# 通过
+
+colcon build --packages-select robot_description
+# Summary: 1 package finished
+```
+
+**运行态 smoke：**
+
+- 仿真提权启动成功并 spawn `ackermann_robot`。
+- FAST-LIO2 启动成功并输出 `Extrinsics detected`。
+- `/localization/wheel_lio_status` 采样成功：
+  - `state=normal; wheel_weight=1.00; reason=waiting_paired_motion; lio_yaw=fresh; wheel=fresh; gps=none`
+- 漂移诊断输出：
+  - `maps/fast_lio_drift_robust_validation.json`
+  - 包含 `/mapping/lio/odom` 和 `/localization/wheel_lio_odom`
+- 建图 smoke 输出：
+  - `maps/wheel_lio_robust_projected_validation.yaml`
+  - `maps/wheel_lio_robust_projected_validation.pgm`
+  - `maps/wheel_lio_robust_projected_validation.json`
+  - exporter 日志：`map: 388x100, occupied: 492, free: 3817, frames: 97`
+
+**注意：**
+
+- 本次 22s 漂移诊断样本中 reference distance 只有约 `0.009m`，不适合作为精度结论。
+- `maps/*robust*` 和 `maps/*validation*` 仍是临时验证产物，默认不提交为正式地图资产。

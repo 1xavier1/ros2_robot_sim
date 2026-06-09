@@ -2,6 +2,7 @@
 """Fuse wheel translation, FAST-LIO yaw, and optional gated GPS anchoring."""
 
 import math
+from dataclasses import dataclass
 
 import rclpy
 from nav_msgs.msg import Odometry
@@ -14,8 +15,111 @@ from std_msgs.msg import String
 EARTH_RADIUS_M = 6378137.0
 
 
+@dataclass(frozen=True)
+class MotionDelta:
+    dx: float
+    dy: float
+    distance: float
+    heading: float
+    yaw_delta: float
+    speed: float
+
+
+@dataclass(frozen=True)
+class MotionComparison:
+    distance_diff: float
+    direction_diff: float
+    yaw_diff: float
+    wheel_lio_speed_ratio: float
+    lio_wheel_speed_ratio: float
+
+
+@dataclass(frozen=True)
+class FusionThresholds:
+    motion_window_min_distance: float = 0.05
+    wheel_lio_distance_warn: float = 0.15
+    wheel_lio_distance_error: float = 0.35
+    wheel_lio_speed_ratio_warn: float = 1.8
+    wheel_lio_speed_ratio_error: float = 3.0
+    yaw_delta_warn: float = 0.25
+    yaw_delta_error: float = 0.60
+    turning_yaw_rate_threshold: float = 0.25
+    max_consecutive_bad_frames: int = 5
+
+
+@dataclass(frozen=True)
+class FusionDecision:
+    state: str
+    reason: str
+
+
 def wrap_angle(angle):
     return math.atan2(math.sin(angle), math.cos(angle))
+
+
+def compute_motion_delta(previous_pose, current_pose, dt):
+    dx = current_pose[0] - previous_pose[0]
+    dy = current_pose[1] - previous_pose[1]
+    distance = math.hypot(dx, dy)
+    heading = math.atan2(dy, dx) if distance > 1e-9 else previous_pose[2]
+    yaw_delta = wrap_angle(current_pose[2] - previous_pose[2])
+    speed = distance / dt if dt > 1e-6 else 0.0
+    return MotionDelta(
+        dx=dx,
+        dy=dy,
+        distance=distance,
+        heading=heading,
+        yaw_delta=yaw_delta,
+        speed=speed,
+    )
+
+
+def speed_ratio(high, low):
+    if low <= 1e-6:
+        return float("inf") if high > 1e-6 else 1.0
+    return high / low
+
+
+def compare_wheel_lio_motion(wheel_delta, lio_delta):
+    return MotionComparison(
+        distance_diff=abs(wheel_delta.distance - lio_delta.distance),
+        direction_diff=abs(wrap_angle(wheel_delta.heading - lio_delta.heading)),
+        yaw_diff=abs(wrap_angle(wheel_delta.yaw_delta - lio_delta.yaw_delta)),
+        wheel_lio_speed_ratio=speed_ratio(wheel_delta.speed, lio_delta.speed),
+        lio_wheel_speed_ratio=speed_ratio(lio_delta.speed, wheel_delta.speed),
+    )
+
+
+def classify_fusion_state(
+    wheel_delta,
+    lio_delta,
+    thresholds,
+    consecutive_bad_frames,
+):
+    comparison = compare_wheel_lio_motion(wheel_delta, lio_delta)
+    if consecutive_bad_frames >= thresholds.max_consecutive_bad_frames:
+        return FusionDecision("degraded", "consecutive_bad_frames")
+    if (
+        wheel_delta.distance > lio_delta.distance
+        and comparison.distance_diff >= thresholds.wheel_lio_distance_error
+    ) or comparison.wheel_lio_speed_ratio >= thresholds.wheel_lio_speed_ratio_error:
+        return FusionDecision("wheel_suspect", "wheel_distance_high")
+    if (
+        lio_delta.distance > wheel_delta.distance
+        and comparison.distance_diff >= thresholds.wheel_lio_distance_error
+    ) or comparison.lio_wheel_speed_ratio >= thresholds.wheel_lio_speed_ratio_error:
+        return FusionDecision("lio_suspect", "lio_distance_high")
+    if comparison.yaw_diff >= thresholds.yaw_delta_error:
+        return FusionDecision("degraded", "yaw_delta_error")
+    if abs(wheel_delta.yaw_delta) >= thresholds.turning_yaw_rate_threshold:
+        return FusionDecision("turning_caution", "yaw_rate_high")
+    if comparison.distance_diff >= thresholds.wheel_lio_distance_warn:
+        return FusionDecision("turning_caution", "distance_warn")
+    if comparison.direction_diff >= thresholds.yaw_delta_warn:
+        return FusionDecision("turning_caution", "direction_warn")
+    if comparison.yaw_diff >= thresholds.yaw_delta_warn:
+        return FusionDecision("turning_caution", "yaw_delta_warn")
+    return FusionDecision("normal", "motion_consistent")
 
 
 def yaw_from_quat(q):

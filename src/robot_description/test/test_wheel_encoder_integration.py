@@ -1221,3 +1221,84 @@ def test_wheel_lio_fusion_only_initializes_anchor_from_fresh_lio():
 
     assert module.can_initialize_anchor(use_lio_yaw=True)
     assert not module.can_initialize_anchor(use_lio_yaw=False)
+
+
+def test_wheel_lio_fusion_computes_motion_delta():
+    module = load_script_module("wheel_lio_fusion.py")
+
+    delta = module.compute_motion_delta(
+        previous_pose=(1.0, 2.0, 0.1),
+        current_pose=(4.0, 6.0, 0.4),
+        dt=2.0,
+    )
+
+    assert abs(delta.dx - 3.0) < 1e-6
+    assert abs(delta.dy - 4.0) < 1e-6
+    assert abs(delta.distance - 5.0) < 1e-6
+    assert abs(delta.heading - 0.9272952180) < 1e-6
+    assert abs(delta.yaw_delta - 0.3) < 1e-6
+    assert abs(delta.speed - 2.5) < 1e-6
+
+
+def test_wheel_lio_fusion_compares_motion_metrics():
+    module = load_script_module("wheel_lio_fusion.py")
+
+    comparison = module.compare_wheel_lio_motion(
+        wheel_delta=module.MotionDelta(1.0, 0.0, 1.0, 0.0, 0.3, 1.0),
+        lio_delta=module.MotionDelta(0.0, 1.0, 1.0, 1.5707963268, 0.1, 0.5),
+    )
+
+    assert abs(comparison.distance_diff - 0.0) < 1e-6
+    assert abs(comparison.direction_diff - 1.5707963268) < 1e-6
+    assert abs(comparison.yaw_diff - 0.2) < 1e-6
+    assert abs(comparison.wheel_lio_speed_ratio - 2.0) < 1e-6
+    assert abs(comparison.lio_wheel_speed_ratio - 0.5) < 1e-6
+
+
+def test_wheel_lio_fusion_classifies_motion_consistency_states():
+    module = load_script_module("wheel_lio_fusion.py")
+    thresholds = module.FusionThresholds()
+
+    normal = module.classify_fusion_state(
+        wheel_delta=module.MotionDelta(1.0, 0.0, 1.0, 0.0, 0.02, 1.0),
+        lio_delta=module.MotionDelta(0.98, 0.0, 0.98, 0.0, 0.02, 0.98),
+        thresholds=thresholds,
+        consecutive_bad_frames=0,
+    )
+    assert normal.state == "normal"
+    assert normal.reason == "motion_consistent"
+
+    wheel_suspect = module.classify_fusion_state(
+        wheel_delta=module.MotionDelta(2.0, 0.0, 2.0, 0.0, 0.0, 2.0),
+        lio_delta=module.MotionDelta(0.4, 0.0, 0.4, 0.0, 0.0, 0.4),
+        thresholds=thresholds,
+        consecutive_bad_frames=0,
+    )
+    assert wheel_suspect.state == "wheel_suspect"
+    assert wheel_suspect.reason == "wheel_distance_high"
+
+    lio_suspect = module.classify_fusion_state(
+        wheel_delta=module.MotionDelta(0.4, 0.0, 0.4, 0.0, 0.0, 0.4),
+        lio_delta=module.MotionDelta(2.0, 0.0, 2.0, 0.0, 0.0, 2.0),
+        thresholds=thresholds,
+        consecutive_bad_frames=0,
+    )
+    assert lio_suspect.state == "lio_suspect"
+    assert lio_suspect.reason == "lio_distance_high"
+
+    turning = module.classify_fusion_state(
+        wheel_delta=module.MotionDelta(0.9, 0.1, 0.91, 0.11, 0.35, 0.91),
+        lio_delta=module.MotionDelta(0.88, 0.12, 0.89, 0.14, 0.34, 0.89),
+        thresholds=thresholds,
+        consecutive_bad_frames=0,
+    )
+    assert turning.state == "turning_caution"
+    assert turning.reason == "yaw_rate_high"
+
+    degraded = module.classify_fusion_state(
+        wheel_delta=module.MotionDelta(2.0, 0.0, 2.0, 0.0, 0.0, 2.0),
+        lio_delta=module.MotionDelta(0.1, 0.0, 0.1, 0.0, 0.0, 0.1),
+        thresholds=thresholds,
+        consecutive_bad_frames=thresholds.max_consecutive_bad_frames,
+    )
+    assert degraded.state == "degraded"

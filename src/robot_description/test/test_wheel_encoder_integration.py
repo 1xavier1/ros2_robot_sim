@@ -8,6 +8,7 @@ import re
 import xml.etree.ElementTree as ET
 
 import yaml
+from rclpy.time import Time
 
 
 PACKAGE_DIR = Path(__file__).resolve().parents[1]
@@ -24,6 +25,96 @@ def load_script_module(script_name):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+class FakeParameter:
+    def __init__(self, value):
+        self.value = value
+
+
+class FakeClock:
+    def __init__(self, seconds):
+        self.time = Time(seconds=seconds)
+
+    def now(self):
+        return self.time
+
+
+class FakePublisher:
+    def __init__(self):
+        self.messages = []
+
+    def publish(self, msg):
+        self.messages.append(msg)
+
+
+def make_odom(module, x, y, yaw=0.0, stamp_sec=1):
+    msg = module.Odometry()
+    msg.header.stamp = Time(seconds=stamp_sec).to_msg()
+    msg.pose.pose.position.x = x
+    msg.pose.pose.position.y = y
+    qx, qy, qz, qw = module.quat_from_yaw(yaw)
+    msg.pose.pose.orientation.x = qx
+    msg.pose.pose.orientation.y = qy
+    msg.pose.pose.orientation.z = qz
+    msg.pose.pose.orientation.w = qw
+    return msg
+
+
+def make_wheel_lio_node(module, now_sec=2.0):
+    node = object.__new__(module.WheelLioFusion)
+    node.parameters = {
+        "lio_timeout_sec": 0.5,
+        "wheel_timeout_sec": 0.25,
+        "gps_timeout_sec": 1.0,
+        "gps_anchor_blend_weight": 0.0,
+        "max_lio_translation_error": 1.0,
+        "motion_window_min_distance": 0.05,
+        "wheel_lio_distance_warn": 0.15,
+        "wheel_lio_distance_error": 0.35,
+        "wheel_lio_speed_ratio_warn": 1.8,
+        "wheel_lio_speed_ratio_error": 3.0,
+        "yaw_delta_warn": 0.25,
+        "yaw_delta_error": 0.60,
+        "turning_yaw_rate_threshold": 0.25,
+        "max_consecutive_bad_frames": 5,
+        "wheel_weight_normal": 1.0,
+        "wheel_weight_turning": 0.8,
+        "wheel_weight_wheel_suspect": 0.2,
+        "wheel_weight_lio_suspect": 1.0,
+        "wheel_weight_degraded": 0.0,
+    }
+    node.clock = FakeClock(now_sec)
+    node.get_clock = lambda: node.clock
+    node.get_parameter = lambda name: FakeParameter(node.parameters[name])
+    node.odom_pub = FakePublisher()
+    node.status_pub = FakePublisher()
+    node.lio_anchor = (0.0, 0.0, 0.0)
+    node.wheel_anchor = (0.0, 0.0, 0.0)
+    node.latest_lio = None
+    node.latest_wheel = None
+    node.latest_gps = None
+    node.latest_lio_stamp = None
+    node.latest_wheel_stamp = None
+    node.latest_gps_stamp = None
+    node.gps_origin = None
+    node.fused_origin_xy = None
+    node.global_offset = (0.0, 0.0)
+    node.previous_lio_pose = None
+    node.previous_wheel_pose = None
+    node.previous_motion_stamp = None
+    node.previous_lio_msg_stamp = None
+    node.previous_wheel_msg_stamp = None
+    node.consecutive_bad_frames = 0
+    node.last_trusted_odom = None
+    return node
+
+
+def set_latest_odom(node, module, lio, wheel, now_sec=2.0, lio_age=0.0):
+    node.latest_lio = lio
+    node.latest_wheel = wheel
+    node.latest_lio_stamp = Time(seconds=now_sec - lio_age)
+    node.latest_wheel_stamp = Time(seconds=now_sec)
 
 
 def plugin_child_text(plugin, child_name):
@@ -1315,6 +1406,15 @@ def test_wheel_lio_fusion_classifies_motion_consistency_states():
     assert turning.state == "turning_caution"
     assert turning.reason == "yaw_rate_high"
 
+    speed_warn = module.classify_fusion_state(
+        wheel_delta=module.MotionDelta(1.0, 0.0, 1.0, 0.0, 0.02, 2.0),
+        lio_delta=module.MotionDelta(1.0, 0.0, 1.0, 0.0, 0.02, 1.0),
+        thresholds=thresholds,
+        consecutive_bad_frames=0,
+    )
+    assert speed_warn.state == "turning_caution"
+    assert speed_warn.reason == "speed_ratio_warn"
+
     degraded = module.classify_fusion_state(
         wheel_delta=module.MotionDelta(2.0, 0.0, 2.0, 0.0, 0.0, 2.0),
         lio_delta=module.MotionDelta(0.1, 0.0, 0.1, 0.0, 0.0, 0.1),
@@ -1400,3 +1500,95 @@ def test_wheel_lio_fusion_old_anchor_projection_stays_available():
     assert abs(fused_pose[0] - 11.9601331557) < 1e-6
     assert abs(fused_pose[1] - 5.3973386616) < 1e-6
     assert abs(fused_pose[2] - 0.25) < 1e-6
+
+
+def test_wheel_lio_fusion_lio_suspect_keeps_old_anchor_projection():
+    module = load_script_module("wheel_lio_fusion.py")
+    node = make_wheel_lio_node(module)
+    set_latest_odom(
+        node,
+        module,
+        lio=make_odom(module, 10.0, 0.0, stamp_sec=2),
+        wheel=make_odom(module, 1.0, 0.0, stamp_sec=2),
+    )
+    node.classify_current_motion = lambda wheel_pose, lio_pose, use_lio_yaw: (
+        module.FusionDecision("lio_suspect", "lio_distance_high")
+    )
+
+    node.publish_if_ready()
+
+    fused = node.odom_pub.messages[-1]
+    assert abs(fused.pose.pose.position.x - 1.0) < 1e-6
+    assert node.lio_anchor == (0.0, 0.0, 0.0)
+    assert node.wheel_anchor == (0.0, 0.0, 0.0)
+    assert "state=lio_suspect" in node.status_pub.messages[-1].data
+
+
+def test_wheel_lio_fusion_stale_lio_does_not_accumulate_bad_frames():
+    module = load_script_module("wheel_lio_fusion.py")
+    node = make_wheel_lio_node(module, now_sec=2.0)
+    node.previous_lio_pose = (0.0, 0.0, 0.0)
+    node.previous_wheel_pose = (0.0, 0.0, 0.0)
+    node.previous_motion_stamp = Time(seconds=1)
+    node.previous_lio_msg_stamp = ("header", 1, 0)
+    node.previous_wheel_msg_stamp = ("header", 1, 0)
+    set_latest_odom(
+        node,
+        module,
+        lio=make_odom(module, 0.0, 0.0, stamp_sec=1),
+        wheel=make_odom(module, 2.0, 0.0, stamp_sec=2),
+        now_sec=2.0,
+        lio_age=1.0,
+    )
+
+    node.publish_if_ready()
+
+    assert node.consecutive_bad_frames == 0
+    assert "reason=lio_stale_fallback" in node.status_pub.messages[-1].data
+
+
+def test_wheel_lio_fusion_waits_for_paired_motion_samples():
+    module = load_script_module("wheel_lio_fusion.py")
+    node = make_wheel_lio_node(module, now_sec=2.0)
+    node.previous_lio_pose = (0.0, 0.0, 0.0)
+    node.previous_wheel_pose = (0.0, 0.0, 0.0)
+    node.previous_motion_stamp = Time(seconds=1)
+    node.previous_lio_msg_stamp = ("header", 1, 0)
+    node.previous_wheel_msg_stamp = ("header", 1, 0)
+    set_latest_odom(
+        node,
+        module,
+        lio=make_odom(module, 0.0, 0.0, stamp_sec=1),
+        wheel=make_odom(module, 2.0, 0.0, stamp_sec=2),
+        now_sec=2.0,
+    )
+
+    node.publish_if_ready()
+
+    assert node.consecutive_bad_frames == 0
+    assert node.lio_anchor == (0.0, 0.0, 0.0)
+    assert node.wheel_anchor == (0.0, 0.0, 0.0)
+    assert "reason=waiting_paired_motion" in node.status_pub.messages[-1].data
+
+
+def test_wheel_lio_fusion_degraded_hold_refreshes_stamp():
+    module = load_script_module("wheel_lio_fusion.py")
+    node = make_wheel_lio_node(module, now_sec=2.0)
+    node.last_trusted_odom = make_odom(module, 3.0, 0.0, stamp_sec=1)
+    set_latest_odom(
+        node,
+        module,
+        lio=make_odom(module, 10.0, 0.0, stamp_sec=2),
+        wheel=make_odom(module, 1.0, 0.0, stamp_sec=2),
+    )
+    node.classify_current_motion = lambda wheel_pose, lio_pose, use_lio_yaw: (
+        module.FusionDecision("degraded", "yaw_delta_error")
+    )
+
+    node.publish_if_ready()
+
+    held = node.odom_pub.messages[-1]
+    assert held is not node.last_trusted_odom
+    assert held.header.stamp.sec == 2
+    assert held.pose.pose.position.x == 3.0
+    assert "reason=holding_last_trusted" in node.status_pub.messages[-1].data

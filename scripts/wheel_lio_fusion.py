@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Fuse wheel translation, FAST-LIO yaw, and optional gated GPS anchoring."""
 
+import copy
 import math
 from dataclasses import dataclass
 
@@ -127,6 +128,11 @@ def classify_fusion_state(
         and comparison.distance_diff >= thresholds.wheel_lio_distance_error
     ) or comparison.lio_wheel_speed_ratio >= thresholds.wheel_lio_speed_ratio_error:
         return FusionDecision("lio_suspect", "lio_distance_high")
+    if (
+        comparison.wheel_lio_speed_ratio >= thresholds.wheel_lio_speed_ratio_warn
+        or comparison.lio_wheel_speed_ratio >= thresholds.wheel_lio_speed_ratio_warn
+    ):
+        return FusionDecision("turning_caution", "speed_ratio_warn")
     if comparison.distance_diff >= thresholds.wheel_lio_distance_warn:
         return FusionDecision("turning_caution", "distance_warn")
     if comparison.direction_diff >= thresholds.yaw_delta_warn:
@@ -292,6 +298,8 @@ class WheelLioFusion(Node):
         self.previous_lio_pose = None
         self.previous_wheel_pose = None
         self.previous_motion_stamp = None
+        self.previous_lio_msg_stamp = None
+        self.previous_wheel_msg_stamp = None
         self.consecutive_bad_frames = 0
         self.last_trusted_odom = None
 
@@ -384,17 +392,51 @@ class WheelLioFusion(Node):
             degraded=float(self.get_parameter("wheel_weight_degraded").value),
         )
 
-    def classify_current_motion(self, wheel_pose, lio_pose):
+    def message_stamp_key(self, msg, receipt_stamp):
+        header_stamp = msg.header.stamp
+        if header_stamp.sec != 0 or header_stamp.nanosec != 0:
+            return ("header", header_stamp.sec, header_stamp.nanosec)
+        return ("receipt", receipt_stamp.nanoseconds)
+
+    def classify_current_motion(self, wheel_pose, lio_pose, use_lio_yaw):
         now = self.get_clock().now()
+        if not use_lio_yaw:
+            self.previous_lio_pose = None
+            self.previous_wheel_pose = wheel_pose
+            self.previous_motion_stamp = now
+            self.previous_lio_msg_stamp = self.message_stamp_key(
+                self.latest_lio,
+                self.latest_lio_stamp,
+            )
+            self.previous_wheel_msg_stamp = self.message_stamp_key(
+                self.latest_wheel,
+                self.latest_wheel_stamp,
+            )
+            return FusionDecision("normal", "lio_stale_fallback")
+
+        lio_msg_stamp = self.message_stamp_key(self.latest_lio, self.latest_lio_stamp)
+        wheel_msg_stamp = self.message_stamp_key(
+            self.latest_wheel,
+            self.latest_wheel_stamp,
+        )
         if (
             self.previous_wheel_pose is None
             or self.previous_lio_pose is None
             or self.previous_motion_stamp is None
+            or self.previous_lio_msg_stamp is None
+            or self.previous_wheel_msg_stamp is None
         ):
             self.previous_wheel_pose = wheel_pose
             self.previous_lio_pose = lio_pose
             self.previous_motion_stamp = now
+            self.previous_lio_msg_stamp = lio_msg_stamp
+            self.previous_wheel_msg_stamp = wheel_msg_stamp
             return FusionDecision("normal", "initializing")
+        if (
+            lio_msg_stamp == self.previous_lio_msg_stamp
+            or wheel_msg_stamp == self.previous_wheel_msg_stamp
+        ):
+            return FusionDecision("normal", "waiting_paired_motion")
 
         dt = (now - self.previous_motion_stamp).nanoseconds / 1e9
         wheel_delta = compute_motion_delta(
@@ -424,6 +466,8 @@ class WheelLioFusion(Node):
         self.previous_wheel_pose = wheel_pose
         self.previous_lio_pose = lio_pose
         self.previous_motion_stamp = now
+        self.previous_lio_msg_stamp = lio_msg_stamp
+        self.previous_wheel_msg_stamp = wheel_msg_stamp
         return decision
 
     def status_text(self, decision, wheel_weight, use_lio_yaw, reason):
@@ -455,14 +499,18 @@ class WheelLioFusion(Node):
             self.lio_anchor = lio_pose
             self.wheel_anchor = wheel_pose
 
-        decision = self.classify_current_motion(wheel_pose, lio_pose)
+        decision = self.classify_current_motion(wheel_pose, lio_pose, use_lio_yaw)
         if decision.state in ("wheel_suspect", "lio_suspect", "degraded"):
             self.consecutive_bad_frames += 1
         else:
             self.consecutive_bad_frames = 0
 
         max_error = float(self.get_parameter("max_lio_translation_error").value)
-        if decision.state in ("normal", "lio_suspect"):
+        can_refresh_anchor = decision.state == "normal" and decision.reason not in (
+            "lio_stale_fallback",
+            "waiting_paired_motion",
+        )
+        if can_refresh_anchor:
             (
                 self.lio_anchor,
                 self.wheel_anchor,
@@ -487,7 +535,10 @@ class WheelLioFusion(Node):
         wheel_weight = wheel_weight_for_state(decision.state, self.fusion_weights())
         if decision.state == "degraded":
             if self.last_trusted_odom is not None:
-                self.odom_pub.publish(self.last_trusted_odom)
+                held_odom = copy.deepcopy(self.last_trusted_odom)
+                held_odom.header.stamp = self.get_clock().now().to_msg()
+                self.apply_gps_anchor(held_odom)
+                self.odom_pub.publish(held_odom)
                 self.publish_status(
                     self.status_text(
                         decision,

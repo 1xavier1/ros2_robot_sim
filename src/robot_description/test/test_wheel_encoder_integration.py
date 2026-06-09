@@ -1331,6 +1331,8 @@ def test_wheel_lio_fusion_weights_and_blends_pose_by_state():
     assert module.wheel_weight_for_state("wheel_suspect", weights) == 0.2
     assert module.wheel_weight_for_state("lio_suspect", weights) == 1.0
     assert module.wheel_weight_for_state("degraded", weights) == 0.0
+    assert module.wheel_weight_for_state("unknown", weights) == 0.0
+    assert module.wheel_weight_for_state("__class__", weights) == 0.0
 
     fused_pose = module.blend_fused_pose(
         wheel_projected_pose=(10.0, 0.0, 0.3),
@@ -1342,6 +1344,26 @@ def test_wheel_lio_fusion_weights_and_blends_pose_by_state():
     assert abs(fused_pose[0] - 2.0) < 1e-6
     assert abs(fused_pose[1] - 8.0) < 1e-6
     assert abs(fused_pose[2] - 0.8) < 1e-6
+
+    lio_only = module.blend_fused_pose(
+        wheel_projected_pose=(10.0, 0.0, 0.3),
+        lio_pose=(0.0, 10.0, 0.8),
+        wheel_weight=-0.5,
+        use_lio_yaw=True,
+    )
+    assert abs(lio_only[0] - 0.0) < 1e-6
+    assert abs(lio_only[1] - 10.0) < 1e-6
+    assert abs(lio_only[2] - 0.8) < 1e-6
+
+    wheel_only = module.blend_fused_pose(
+        wheel_projected_pose=(10.0, 0.0, 4.0),
+        lio_pose=(0.0, 10.0, 0.8),
+        wheel_weight=1.5,
+        use_lio_yaw=False,
+    )
+    assert abs(wheel_only[0] - 10.0) < 1e-6
+    assert abs(wheel_only[1] - 0.0) < 1e-6
+    assert abs(wheel_only[2] - module.wrap_angle(4.0)) < 1e-6
 
 
 def test_wheel_lio_fusion_old_anchor_projection_stays_available():

@@ -188,7 +188,14 @@ def compose_wheel_lio_pose(
 
 
 def wheel_weight_for_state(state, weights):
-    return getattr(weights, state, weights.degraded)
+    state_weights = {
+        "normal": weights.normal,
+        "turning_caution": weights.turning_caution,
+        "wheel_suspect": weights.wheel_suspect,
+        "lio_suspect": weights.lio_suspect,
+        "degraded": weights.degraded,
+    }
+    return state_weights.get(state, weights.degraded)
 
 
 def blend_fused_pose(wheel_projected_pose, lio_pose, wheel_weight, use_lio_yaw):

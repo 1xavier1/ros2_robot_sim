@@ -263,6 +263,20 @@ class WheelLioFusion(Node):
         self.declare_parameter("gps_timeout_sec", 1.0)
         self.declare_parameter("gps_anchor_blend_weight", 0.0)
         self.declare_parameter("max_lio_translation_error", 1.0)
+        self.declare_parameter("motion_window_min_distance", 0.05)
+        self.declare_parameter("wheel_lio_distance_warn", 0.15)
+        self.declare_parameter("wheel_lio_distance_error", 0.35)
+        self.declare_parameter("wheel_lio_speed_ratio_warn", 1.8)
+        self.declare_parameter("wheel_lio_speed_ratio_error", 3.0)
+        self.declare_parameter("yaw_delta_warn", 0.25)
+        self.declare_parameter("yaw_delta_error", 0.60)
+        self.declare_parameter("turning_yaw_rate_threshold", 0.25)
+        self.declare_parameter("max_consecutive_bad_frames", 5)
+        self.declare_parameter("wheel_weight_normal", 1.0)
+        self.declare_parameter("wheel_weight_turning", 0.8)
+        self.declare_parameter("wheel_weight_wheel_suspect", 0.2)
+        self.declare_parameter("wheel_weight_lio_suspect", 1.0)
+        self.declare_parameter("wheel_weight_degraded", 0.0)
 
         self.lio_anchor = None
         self.wheel_anchor = None
@@ -275,6 +289,11 @@ class WheelLioFusion(Node):
         self.gps_origin = None
         self.fused_origin_xy = None
         self.global_offset = (0.0, 0.0)
+        self.previous_lio_pose = None
+        self.previous_wheel_pose = None
+        self.previous_motion_stamp = None
+        self.consecutive_bad_frames = 0
+        self.last_trusted_odom = None
 
         self.odom_pub = self.create_publisher(
             Odometry,
@@ -327,6 +346,96 @@ class WheelLioFusion(Node):
         timeout = float(self.get_parameter(timeout_parameter).value)
         return self.get_clock().now() - stamp <= Duration(seconds=timeout)
 
+    def fusion_thresholds(self):
+        return FusionThresholds(
+            motion_window_min_distance=float(
+                self.get_parameter("motion_window_min_distance").value
+            ),
+            wheel_lio_distance_warn=float(
+                self.get_parameter("wheel_lio_distance_warn").value
+            ),
+            wheel_lio_distance_error=float(
+                self.get_parameter("wheel_lio_distance_error").value
+            ),
+            wheel_lio_speed_ratio_warn=float(
+                self.get_parameter("wheel_lio_speed_ratio_warn").value
+            ),
+            wheel_lio_speed_ratio_error=float(
+                self.get_parameter("wheel_lio_speed_ratio_error").value
+            ),
+            yaw_delta_warn=float(self.get_parameter("yaw_delta_warn").value),
+            yaw_delta_error=float(self.get_parameter("yaw_delta_error").value),
+            turning_yaw_rate_threshold=float(
+                self.get_parameter("turning_yaw_rate_threshold").value
+            ),
+            max_consecutive_bad_frames=int(
+                self.get_parameter("max_consecutive_bad_frames").value
+            ),
+        )
+
+    def fusion_weights(self):
+        return FusionWeights(
+            normal=float(self.get_parameter("wheel_weight_normal").value),
+            turning_caution=float(self.get_parameter("wheel_weight_turning").value),
+            wheel_suspect=float(
+                self.get_parameter("wheel_weight_wheel_suspect").value
+            ),
+            lio_suspect=float(self.get_parameter("wheel_weight_lio_suspect").value),
+            degraded=float(self.get_parameter("wheel_weight_degraded").value),
+        )
+
+    def classify_current_motion(self, wheel_pose, lio_pose):
+        now = self.get_clock().now()
+        if (
+            self.previous_wheel_pose is None
+            or self.previous_lio_pose is None
+            or self.previous_motion_stamp is None
+        ):
+            self.previous_wheel_pose = wheel_pose
+            self.previous_lio_pose = lio_pose
+            self.previous_motion_stamp = now
+            return FusionDecision("normal", "initializing")
+
+        dt = (now - self.previous_motion_stamp).nanoseconds / 1e9
+        wheel_delta = compute_motion_delta(
+            self.previous_wheel_pose,
+            wheel_pose,
+            dt,
+        )
+        lio_delta = compute_motion_delta(
+            self.previous_lio_pose,
+            lio_pose,
+            dt,
+        )
+        thresholds = self.fusion_thresholds()
+        if (
+            wheel_delta.distance < thresholds.motion_window_min_distance
+            and lio_delta.distance < thresholds.motion_window_min_distance
+        ):
+            decision = FusionDecision("normal", "motion_window_small")
+        else:
+            decision = classify_fusion_state(
+                wheel_delta,
+                lio_delta,
+                thresholds,
+                self.consecutive_bad_frames,
+            )
+
+        self.previous_wheel_pose = wheel_pose
+        self.previous_lio_pose = lio_pose
+        self.previous_motion_stamp = now
+        return decision
+
+    def status_text(self, decision, wheel_weight, use_lio_yaw, reason):
+        lio_yaw_state = "fresh" if use_lio_yaw else "fallback"
+        return (
+            f"state={decision.state}; "
+            f"wheel_weight={wheel_weight:.2f}; "
+            f"reason={reason}; "
+            f"lio_yaw={lio_yaw_state}; "
+            "wheel=fresh"
+        )
+
     def publish_if_ready(self):
         if self.latest_lio is None or self.latest_wheel is None:
             return
@@ -346,14 +455,63 @@ class WheelLioFusion(Node):
             self.lio_anchor = lio_pose
             self.wheel_anchor = wheel_pose
 
+        decision = self.classify_current_motion(wheel_pose, lio_pose)
+        if decision.state in ("wheel_suspect", "lio_suspect", "degraded"):
+            self.consecutive_bad_frames += 1
+        else:
+            self.consecutive_bad_frames = 0
+
         max_error = float(self.get_parameter("max_lio_translation_error").value)
-        self.lio_anchor, self.wheel_anchor, fused_pose = maybe_refresh_anchor_and_pose(
-            self.lio_anchor,
-            self.wheel_anchor,
-            wheel_pose,
+        if decision.state in ("normal", "lio_suspect"):
+            (
+                self.lio_anchor,
+                self.wheel_anchor,
+                wheel_projected_pose,
+            ) = maybe_refresh_anchor_and_pose(
+                self.lio_anchor,
+                self.wheel_anchor,
+                wheel_pose,
+                lio_pose,
+                use_lio_yaw,
+                max_error,
+            )
+        else:
+            wheel_projected_pose = compose_wheel_lio_pose(
+                self.lio_anchor,
+                self.wheel_anchor,
+                wheel_pose,
+                lio_pose,
+                use_lio_yaw=use_lio_yaw,
+            )
+
+        wheel_weight = wheel_weight_for_state(decision.state, self.fusion_weights())
+        if decision.state == "degraded":
+            if self.last_trusted_odom is not None:
+                self.odom_pub.publish(self.last_trusted_odom)
+                self.publish_status(
+                    self.status_text(
+                        decision,
+                        wheel_weight,
+                        use_lio_yaw,
+                        "holding_last_trusted",
+                    )
+                )
+                return
+            self.publish_status(
+                self.status_text(
+                    decision,
+                    wheel_weight,
+                    use_lio_yaw,
+                    "no_trusted_pose",
+                )
+            )
+            return
+
+        fused_pose = blend_fused_pose(
+            wheel_projected_pose,
             lio_pose,
+            wheel_weight,
             use_lio_yaw,
-            max_error,
         )
 
         fused = Odometry()
@@ -376,8 +534,10 @@ class WheelLioFusion(Node):
 
         self.apply_gps_anchor(fused)
         self.odom_pub.publish(fused)
-        lio_state = "lio_yaw=fresh" if use_lio_yaw else "lio_yaw=fallback"
-        self.publish_status(f"{lio_state}; wheel=fresh")
+        self.publish_status(
+            self.status_text(decision, wheel_weight, use_lio_yaw, decision.reason)
+        )
+        self.last_trusted_odom = fused
 
     def apply_gps_anchor(self, fused):
         if self.latest_gps is None or self.gps_origin is None:

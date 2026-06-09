@@ -1124,6 +1124,26 @@ def test_wheel_lio_fusion_contract():
     assert "max_lio_translation_error" in script
     assert "compose_wheel_lio_pose" in script
     assert "lio=stale_waiting_anchor" in script
+    for expected in [
+        "motion_window_min_distance",
+        "wheel_lio_distance_warn",
+        "wheel_lio_distance_error",
+        "wheel_lio_speed_ratio_warn",
+        "wheel_lio_speed_ratio_error",
+        "yaw_delta_warn",
+        "yaw_delta_error",
+        "turning_yaw_rate_threshold",
+        "wheel_weight_normal",
+        "wheel_weight_turning",
+        "wheel_weight_wheel_suspect",
+        "wheel_weight_lio_suspect",
+        "wheel_weight_degraded",
+        "max_consecutive_bad_frames",
+        "state=",
+        "wheel_weight=",
+        "last_trusted_odom",
+    ]:
+        assert expected in script
 
 
 def test_wheel_lio_fusion_uses_wheel_translation_and_lio_yaw():

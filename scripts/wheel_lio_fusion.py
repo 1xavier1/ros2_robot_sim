@@ -99,6 +99,15 @@ def classify_fusion_state(
     comparison = compare_wheel_lio_motion(wheel_delta, lio_delta)
     if consecutive_bad_frames >= thresholds.max_consecutive_bad_frames:
         return FusionDecision("degraded", "consecutive_bad_frames")
+    if comparison.yaw_diff >= thresholds.yaw_delta_error:
+        return FusionDecision("degraded", "yaw_delta_error")
+    if abs(wheel_delta.yaw_delta) >= thresholds.turning_yaw_rate_threshold:
+        return FusionDecision("turning_caution", "yaw_rate_high")
+    if (
+        max(wheel_delta.distance, lio_delta.distance)
+        < thresholds.motion_window_min_distance
+    ):
+        return FusionDecision("normal", "insufficient_motion")
     if (
         wheel_delta.distance > lio_delta.distance
         and comparison.distance_diff >= thresholds.wheel_lio_distance_error
@@ -109,10 +118,6 @@ def classify_fusion_state(
         and comparison.distance_diff >= thresholds.wheel_lio_distance_error
     ) or comparison.lio_wheel_speed_ratio >= thresholds.wheel_lio_speed_ratio_error:
         return FusionDecision("lio_suspect", "lio_distance_high")
-    if comparison.yaw_diff >= thresholds.yaw_delta_error:
-        return FusionDecision("degraded", "yaw_delta_error")
-    if abs(wheel_delta.yaw_delta) >= thresholds.turning_yaw_rate_threshold:
-        return FusionDecision("turning_caution", "yaw_rate_high")
     if comparison.distance_diff >= thresholds.wheel_lio_distance_warn:
         return FusionDecision("turning_caution", "distance_warn")
     if comparison.direction_diff >= thresholds.yaw_delta_warn:

@@ -1302,3 +1302,21 @@ def test_wheel_lio_fusion_classifies_motion_consistency_states():
         consecutive_bad_frames=thresholds.max_consecutive_bad_frames,
     )
     assert degraded.state == "degraded"
+
+    near_stationary = module.classify_fusion_state(
+        wheel_delta=module.MotionDelta(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        lio_delta=module.MotionDelta(0.0000001, 0.0, 0.0000001, 0.0, 0.0, 0.000002),
+        thresholds=thresholds,
+        consecutive_bad_frames=0,
+    )
+    assert near_stationary.state == "normal"
+    assert near_stationary.reason == "insufficient_motion"
+
+    yaw_error = module.classify_fusion_state(
+        wheel_delta=module.MotionDelta(2.0, 0.0, 2.0, 0.0, 1.0, 2.0),
+        lio_delta=module.MotionDelta(0.1, 0.0, 0.1, 0.0, 0.0, 0.1),
+        thresholds=thresholds,
+        consecutive_bad_frames=0,
+    )
+    assert yaw_error.state == "degraded"
+    assert yaw_error.reason == "yaw_delta_error"

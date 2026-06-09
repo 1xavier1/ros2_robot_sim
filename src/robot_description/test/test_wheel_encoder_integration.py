@@ -1592,3 +1592,13 @@ def test_wheel_lio_fusion_degraded_hold_refreshes_stamp():
     assert held.header.stamp.sec == 2
     assert held.pose.pose.position.x == 3.0
     assert "reason=holding_last_trusted" in node.status_pub.messages[-1].data
+
+
+def test_wheel_lio_robust_fusion_does_not_use_ground_truth_for_production():
+    fusion = read(WORKSPACE_DIR / "scripts" / "wheel_lio_fusion.py")
+    exporter = read(WORKSPACE_DIR / "scripts" / "export_odom_projected_map.py")
+
+    assert "/robot/ground_truth/odom" not in fusion
+    assert 'default="/localization/wheel_lio_odom"' in exporter
+    assert "--reference-topic" in exporter
+    assert "/robot/ground_truth/odom" in exporter

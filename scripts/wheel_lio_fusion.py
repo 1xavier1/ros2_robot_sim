@@ -48,6 +48,15 @@ class FusionThresholds:
 
 
 @dataclass(frozen=True)
+class FusionWeights:
+    normal: float = 1.0
+    turning_caution: float = 0.8
+    wheel_suspect: float = 0.2
+    lio_suspect: float = 1.0
+    degraded: float = 0.0
+
+
+@dataclass(frozen=True)
 class FusionDecision:
     state: str
     reason: str
@@ -175,6 +184,19 @@ def compose_wheel_lio_pose(
         yaw = lio_current[2]
     else:
         yaw = lio_anchor[2] + wrap_angle(wheel_current[2] - wheel_anchor[2])
+    return (x, y, wrap_angle(yaw))
+
+
+def wheel_weight_for_state(state, weights):
+    return getattr(weights, state, weights.degraded)
+
+
+def blend_fused_pose(wheel_projected_pose, lio_pose, wheel_weight, use_lio_yaw):
+    wheel_weight = max(0.0, min(1.0, wheel_weight))
+    lio_weight = 1.0 - wheel_weight
+    x = wheel_projected_pose[0] * wheel_weight + lio_pose[0] * lio_weight
+    y = wheel_projected_pose[1] * wheel_weight + lio_pose[1] * lio_weight
+    yaw = lio_pose[2] if use_lio_yaw else wheel_projected_pose[2]
     return (x, y, wrap_angle(yaw))
 
 

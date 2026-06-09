@@ -1320,3 +1320,41 @@ def test_wheel_lio_fusion_classifies_motion_consistency_states():
     )
     assert yaw_error.state == "degraded"
     assert yaw_error.reason == "yaw_delta_error"
+
+
+def test_wheel_lio_fusion_weights_and_blends_pose_by_state():
+    module = load_script_module("wheel_lio_fusion.py")
+    weights = module.FusionWeights()
+
+    assert module.wheel_weight_for_state("normal", weights) == 1.0
+    assert module.wheel_weight_for_state("turning_caution", weights) == 0.8
+    assert module.wheel_weight_for_state("wheel_suspect", weights) == 0.2
+    assert module.wheel_weight_for_state("lio_suspect", weights) == 1.0
+    assert module.wheel_weight_for_state("degraded", weights) == 0.0
+
+    fused_pose = module.blend_fused_pose(
+        wheel_projected_pose=(10.0, 0.0, 0.3),
+        lio_pose=(0.0, 10.0, 0.8),
+        wheel_weight=0.2,
+        use_lio_yaw=True,
+    )
+
+    assert abs(fused_pose[0] - 2.0) < 1e-6
+    assert abs(fused_pose[1] - 8.0) < 1e-6
+    assert abs(fused_pose[2] - 0.8) < 1e-6
+
+
+def test_wheel_lio_fusion_old_anchor_projection_stays_available():
+    module = load_script_module("wheel_lio_fusion.py")
+
+    fused_pose = module.compose_wheel_lio_pose(
+        lio_anchor=(10.0, 5.0, 0.2),
+        wheel_anchor=(1.0, 1.0, 0.0),
+        wheel_current=(3.0, 1.0, 0.0),
+        lio_current=(10.4, 5.1, 0.25),
+        use_lio_yaw=True,
+    )
+
+    assert abs(fused_pose[0] - 11.9601331557) < 1e-6
+    assert abs(fused_pose[1] - 5.3973386616) < 1e-6
+    assert abs(fused_pose[2] - 0.25) < 1e-6

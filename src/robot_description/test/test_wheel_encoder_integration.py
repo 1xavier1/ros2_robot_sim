@@ -1660,6 +1660,24 @@ def test_task_map_core_converts_taught_route_to_goal_poses():
     assert poses[-1] == (2.0, 0.2, 0.1)
 
 
+def test_goal_poses_rejects_task_without_route_context():
+    module = load_script_module("task_map_core.py")
+    task_map = module.load_task_map(WORKSPACE_DIR / "config" / "task_map.example.yaml")
+    del task_map["tasks"][0]["route"]
+
+    with pytest.raises(ValueError, match="task daily_patrol missing route"):
+        module.goal_poses_for_task(task_map, "daily_patrol")
+
+
+def test_goal_poses_rejects_invalid_route_pose_context():
+    module = load_script_module("task_map_core.py")
+    task_map = module.load_task_map(WORKSPACE_DIR / "config" / "task_map.example.yaml")
+    task_map["recorded_routes"][0]["path"][1]["pose"] = [1.0, "bad", 0.0]
+
+    with pytest.raises(ValueError, match="route .* point 1 pose"):
+        module.goal_poses_for_task(task_map, "daily_patrol")
+
+
 def test_route_recorder_samples_by_distance_or_yaw_change():
     module = load_script_module("task_map_core.py")
     samples = []
@@ -1714,3 +1732,10 @@ def test_task_executor_exposes_task_commands_and_status_topics():
     assert "NavigateThroughPoses" in script or "NavigateToPose" in script
     assert "BLOCKED" in script
     assert "allow_reverse" in script
+    assert "unsupported_command" in script
+    assert "task_already_running" in script
+    assert "active_goal_handle" in script
+    assert "STATUS_SUCCEEDED" in script
+    assert "result.status == 4" not in script
+    for unsupported_state in ("PAUSED", "CANCELLED", "RETURNING_HOME"):
+        assert unsupported_state not in script

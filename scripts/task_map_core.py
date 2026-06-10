@@ -107,11 +107,40 @@ def item_by_id(items, item_id, kind):
     raise ValueError(f"unknown {kind}: {item_id}")
 
 
+def validate_route_path(route, task_id):
+    route_id = route.get("id")
+    path = route.get("path")
+    if not isinstance(path, list) or not path:
+        raise ValueError(f"route {route_id} for task {task_id} must have non-empty path")
+    for index, point in enumerate(path):
+        if not isinstance(point, dict) or "pose" not in point:
+            raise ValueError(
+                f"route {route_id} for task {task_id} point {index} missing pose"
+            )
+        pose = point["pose"]
+        if not isinstance(pose, (list, tuple)) or len(pose) != 3:
+            raise ValueError(
+                f"route {route_id} for task {task_id} point {index} pose "
+                "must be 3 numeric values"
+            )
+        if not all(
+            isinstance(value, (int, float)) and not isinstance(value, bool)
+            for value in pose
+        ):
+            raise ValueError(
+                f"route {route_id} for task {task_id} point {index} pose "
+                "must be 3 numeric values"
+            )
+
+
 def goal_poses_for_task(task_map, task_id):
     task = item_by_id(task_map["tasks"], task_id, "task")
     if task.get("type") != "taught_route":
         raise ValueError(f"unsupported task type: {task.get('type')}")
+    if "route" not in task:
+        raise ValueError(f"task {task_id} missing route")
     route = item_by_id(task_map["recorded_routes"], task["route"], "recorded_route")
+    validate_route_path(route, task_id)
     if not route_allows_execution(task_map, route):
         raise ValueError(f"route {route['id']} violates motion profile")
     return [tuple(point["pose"]) for point in route["path"]]

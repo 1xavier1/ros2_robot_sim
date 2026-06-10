@@ -3,6 +3,7 @@
 
 import math
 
+from action_msgs.msg import GoalStatus
 import rclpy
 from geometry_msgs.msg import PoseStamped
 from nav2_msgs.action import NavigateThroughPoses
@@ -21,6 +22,7 @@ class TaskExecutor(Node):
         self.task_map = load_task_map(self.get_parameter("task_map").value)
         self.state = "IDLE"
         self.active_task_id = None
+        self.active_goal_handle = None
 
         self.status_pub = self.create_publisher(String, "/task/status", 10)
         self.goal_pub = self.create_publisher(String, "/task/current_goal", 10)
@@ -40,20 +42,13 @@ class TaskExecutor(Node):
         args = dict(part.split("=", 1) for part in parts[1:] if "=" in part)
         if command == "start_task":
             self.start_task(args.get("id", self.get_parameter("default_task_id").value))
-        elif command == "pause_task":
-            self.state = "PAUSED"
-            self.publish_status("PAUSED")
-        elif command == "resume_task":
-            self.state = "RUNNING"
-            self.publish_status("RUNNING")
-        elif command == "cancel_task":
-            self.state = "CANCELLED"
-            self.publish_status("CANCELLED")
-        elif command == "return_home":
-            self.state = "RETURNING_HOME"
-            self.publish_status("RETURNING_HOME")
+        elif command in ("pause_task", "resume_task", "cancel_task", "return_home"):
+            self.publish_unsupported(command)
 
     def start_task(self, task_id):
+        if self.state == "RUNNING":
+            self.publish_status("BLOCKED; reason=task_already_running")
+            return
         try:
             poses = goal_poses_for_task(self.task_map, task_id)
             self.ensure_reverse_policy(task_id)
@@ -104,16 +99,24 @@ class TaskExecutor(Node):
             self.state = "BLOCKED"
             self.publish_status("BLOCKED; reason=nav2_goal_rejected")
             return
+        self.active_goal_handle = goal_handle
         goal_handle.get_result_async().add_done_callback(self.on_nav_result)
 
     def on_nav_result(self, future):
+        if self.active_goal_handle is None:
+            return
         result = future.result()
-        if result.status == 4:
+        self.active_goal_handle = None
+        if result.status == GoalStatus.STATUS_SUCCEEDED:
             self.state = "COMPLETED"
             self.publish_status("COMPLETED")
         else:
             self.state = "BLOCKED"
             self.publish_status(f"BLOCKED; reason=nav2_status_{result.status}")
+
+    def publish_unsupported(self, command):
+        self.state = "BLOCKED"
+        self.publish_status(f"BLOCKED; reason=unsupported_command:{command}")
 
     def publish_status(self, text):
         self.status_pub.publish(String(data=text))

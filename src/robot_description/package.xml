@@ -16,6 +16,7 @@
   <depend>gazebo_ros_pkgs</depend>
   <depend>rclcpp</depend>
   <depend>rclpy</depend>
+  <depend>action_msgs</depend>
   <depend>robot_state_publisher</depend>
   <depend>joint_state_publisher</depend>
   <depend>xacro</depend>

@@ -77,7 +77,7 @@ def should_append_route_sample(samples, pose, min_distance, min_yaw_change):
 
 
 def direction_from_linear_velocity(linear_x):
-    return "reverse" if linear_x < -1e-4 else "forward"
+    return "reverse" if linear_x < 0.0 else "forward"
 
 
 def motion_profiles_by_id(task_map):

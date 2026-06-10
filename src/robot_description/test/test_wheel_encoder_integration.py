@@ -1660,6 +1660,14 @@ def test_route_recorder_samples_by_distance_or_yaw_change():
     assert module.should_append_route_sample(samples, (0.1, 0.0, 0.30), 0.3, 0.25)
 
 
+def test_route_recorder_direction_from_any_negative_linear_velocity():
+    module = load_script_module("task_map_core.py")
+
+    assert module.direction_from_linear_velocity(-0.00001) == "reverse"
+    assert module.direction_from_linear_velocity(0.0) == "forward"
+    assert module.direction_from_linear_velocity(0.00001) == "forward"
+
+
 def test_route_recorder_declares_teach_interfaces_and_outputs_task_map():
     script = read(WORKSPACE_DIR / "scripts" / "route_recorder.py")
 
@@ -1668,5 +1676,9 @@ def test_route_recorder_declares_teach_interfaces_and_outputs_task_map():
     assert "/teach/status" in script
     assert "/localization/global_odom" in script
     assert "/localization/wheel_lio_odom" in script
+    assert "/robot/odom" in script
+    assert "mark_waypoint" in script
+    assert "start_recording" in script
+    assert "stop_recording" in script
     assert "save_task_map" in script
     assert "task_map.yaml" in script

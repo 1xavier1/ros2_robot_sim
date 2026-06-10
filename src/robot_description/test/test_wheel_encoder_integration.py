@@ -1735,9 +1735,11 @@ def test_task_executor_exposes_task_commands_and_status_topics():
     assert "unsupported_command" in script
     assert "task_already_running" in script
     assert "active_goal_handle" in script
+    assert "nav_goal_pending" in script
+    assert "def has_active_or_pending_goal" in script
     assert "STATUS_SUCCEEDED" in script
     assert "result.status == 4" not in script
-    assert 'if self.active_goal_handle is not None:' in script
+    assert "if self.has_active_or_pending_goal():" in script
     assert 'if self.state == "RUNNING":' not in script
     assert "RUNNING; warning=unsupported_command" in script
     assert "active_goal=true" not in script

@@ -23,6 +23,7 @@ class TaskExecutor(Node):
         self.state = "IDLE"
         self.active_task_id = None
         self.active_goal_handle = None
+        self.nav_goal_pending = False
 
         self.status_pub = self.create_publisher(String, "/task/status", 10)
         self.goal_pub = self.create_publisher(String, "/task/current_goal", 10)
@@ -46,7 +47,7 @@ class TaskExecutor(Node):
             self.publish_unsupported(command)
 
     def start_task(self, task_id):
-        if self.active_goal_handle is not None:
+        if self.has_active_or_pending_goal():
             self.publish_status("BLOCKED; reason=task_already_running")
             return
         try:
@@ -60,6 +61,9 @@ class TaskExecutor(Node):
         self.state = "RUNNING"
         self.publish_status(f"RUNNING; task={task_id}; goals={len(poses)}")
         self.send_nav_goal(poses)
+
+    def has_active_or_pending_goal(self):
+        return self.nav_goal_pending or self.active_goal_handle is not None
 
     def ensure_reverse_policy(self, task_id):
         task = next(item for item in self.task_map["tasks"] if item["id"] == task_id)
@@ -77,9 +81,11 @@ class TaskExecutor(Node):
             first = goal_msg.poses[0].pose.position
             self.goal_pub.publish(String(data=f"x={first.x:.3f}; y={first.y:.3f}"))
         if not self.nav_client.wait_for_server(timeout_sec=1.0):
+            self.nav_goal_pending = False
             self.state = "BLOCKED"
             self.publish_status("BLOCKED; reason=nav2_action_unavailable")
             return
+        self.nav_goal_pending = True
         future = self.nav_client.send_goal_async(goal_msg)
         future.add_done_callback(self.on_goal_response)
 
@@ -94,8 +100,10 @@ class TaskExecutor(Node):
         return msg
 
     def on_goal_response(self, future):
+        self.nav_goal_pending = False
         goal_handle = future.result()
         if not goal_handle.accepted:
+            self.active_goal_handle = None
             self.state = "BLOCKED"
             self.publish_status("BLOCKED; reason=nav2_goal_rejected")
             return
@@ -107,6 +115,7 @@ class TaskExecutor(Node):
             return
         result = future.result()
         self.active_goal_handle = None
+        self.nav_goal_pending = False
         if result.status == GoalStatus.STATUS_SUCCEEDED:
             self.state = "COMPLETED"
             self.publish_status("COMPLETED")
@@ -115,7 +124,7 @@ class TaskExecutor(Node):
             self.publish_status(f"BLOCKED; reason=nav2_status_{result.status}")
 
     def publish_unsupported(self, command):
-        if self.active_goal_handle is not None:
+        if self.has_active_or_pending_goal():
             self.state = "RUNNING"
             self.publish_status(f"RUNNING; warning=unsupported_command:{command}")
             return

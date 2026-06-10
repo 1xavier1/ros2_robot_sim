@@ -1118,3 +1118,16 @@ colcon build --packages-select robot_description
 
 - 本次 22s 漂移诊断样本中 reference distance 只有约 `0.009m`，不适合作为精度结论。
 - `maps/*robust*` 和 `maps/*validation*` 仍是临时验证产物，默认不提交为正式地图资产。
+
+### 2026-06-10：P0 自主任务导航计划验收入口
+
+P0 手动验证顺序：
+
+1. 启动仿真、FAST-LIO2、wheel-LIO、Nav2。
+2. 启动 navigation launch 时设置 `enable_task_navigation:=true`。
+3. 启动 `remote`，使用现有遥控器手动驾驶。
+4. 使用 Teach 面板 mark waypoint、start/stop recording、save task map。
+5. 使用 Task 面板 start task。
+6. 观察 `/task/status`、`/task/current_goal`、`/localization/supervised_mode`。
+
+生产任务链路不得使用 `/robot/ground_truth/odom`。

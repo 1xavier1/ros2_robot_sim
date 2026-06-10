@@ -9,6 +9,7 @@ from ament_index_python.packages import (
 )
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, LogInfo, SetEnvironmentVariable
+from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 
@@ -68,10 +69,13 @@ def generate_launch_description():
     map_align_y = LaunchConfiguration('map_align_y', default='0.0')
     map_align_yaw = LaunchConfiguration('map_align_yaw', default='0.0')
     gps_anchor_blend_weight = LaunchConfiguration('gps_anchor_blend_weight', default='0.0')
+    enable_task_navigation = LaunchConfiguration('enable_task_navigation', default='false')
     default_map_yaml = os.path.join(pkg_share, '..', '..', '..', '..', 'maps', 'barn_corridor_sim_001.yaml')
     if not os.path.exists(default_map_yaml):
         default_map_yaml = os.path.join(pkg_share, 'maps', 'barn_corridor_sim_001.yaml')
     map_yaml = LaunchConfiguration('map', default=default_map_yaml)
+    default_task_map = os.path.join(pkg_share, 'config', 'task_map.example.yaml')
+    task_map = LaunchConfiguration('task_map', default=default_task_map)
 
     launch_actions = [
         SetEnvironmentVariable('RCUTILS_CONSOLE_OUTPUT_FORMAT', '[{name}]: {message}'),
@@ -94,6 +98,12 @@ def generate_launch_description():
         DeclareLaunchArgument('gps_anchor_blend_weight',
                               default_value='0.0',
                               description='GPS anchor blend weight for global localization backend.'),
+        DeclareLaunchArgument('enable_task_navigation',
+                              default_value='false',
+                              description='Start P0 route recorder, task executor, and localization mode supervisor.'),
+        DeclareLaunchArgument('task_map',
+                              default_value=default_task_map,
+                              description='Task map yaml used by taught task navigation.'),
     ]
 
     if missing_required:
@@ -295,6 +305,44 @@ def generate_launch_description():
         output='screen',
         parameters=[{'use_sim_time': use_sim_time}],
     ))
+
+    nodes.extend([
+        Node(
+            package='robot_description',
+            executable='route_recorder.py',
+            name='route_recorder',
+            output='screen',
+            condition=IfCondition(enable_task_navigation),
+            parameters=[{
+                'use_sim_time': use_sim_time,
+                'task_map_template': task_map,
+                'task_map_output': 'maps/task_map.yaml',
+                'pose_topic': '/localization/global_odom',
+            }],
+        ),
+        Node(
+            package='robot_description',
+            executable='task_executor.py',
+            name='task_executor',
+            output='screen',
+            condition=IfCondition(enable_task_navigation),
+            parameters=[{
+                'use_sim_time': use_sim_time,
+                'task_map': task_map,
+            }],
+        ),
+        Node(
+            package='robot_description',
+            executable='localization_mode_supervisor.py',
+            name='localization_mode_supervisor',
+            output='screen',
+            condition=IfCondition(enable_task_navigation),
+            parameters=[{
+                'use_sim_time': use_sim_time,
+                'task_map': task_map,
+            }],
+        ),
+    ])
 
     launch_actions.extend(nodes)
     return LaunchDescription(launch_actions)

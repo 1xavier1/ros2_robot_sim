@@ -1799,3 +1799,13 @@ def test_task_executor_exposes_task_commands_and_status_topics():
     assert "active_goal=true" not in script
     for unsupported_state in ("PAUSED", "CANCELLED", "RETURNING_HOME"):
         assert unsupported_state not in script
+
+
+def test_navigation_launch_can_start_p0_task_nodes():
+    launch = read(WORKSPACE_DIR / "launch" / "navigation.launch.py")
+
+    assert "route_recorder.py" in launch
+    assert "task_executor.py" in launch
+    assert "localization_mode_supervisor.py" in launch
+    assert "task_map" in launch
+    assert "enable_task_navigation" in launch

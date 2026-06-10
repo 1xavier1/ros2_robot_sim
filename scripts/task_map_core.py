@@ -52,12 +52,26 @@ def validate_task_map(task_map):
     return task_map
 
 
+def point_on_segment(x, y, start, end, epsilon=1e-9):
+    x1, y1 = start
+    x2, y2 = end
+    cross = (x - x1) * (y2 - y1) - (y - y1) * (x2 - x1)
+    if abs(cross) > epsilon:
+        return False
+    return (
+        min(x1, x2) - epsilon <= x <= max(x1, x2) + epsilon
+        and min(y1, y2) - epsilon <= y <= max(y1, y2) + epsilon
+    )
+
+
 def point_in_polygon(x, y, polygon):
     inside = False
     j = len(polygon) - 1
     for i, point in enumerate(polygon):
         xi, yi = point
         xj, yj = polygon[j]
+        if point_on_segment(x, y, (xi, yi), (xj, yj)):
+            return True
         intersects = ((yi > y) != (yj > y)) and (
             x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-12) + xi
         )
@@ -67,9 +81,28 @@ def point_in_polygon(x, y, polygon):
     return inside
 
 
+def validate_region_polygon(region, index):
+    region_id = region.get("id", f"index {index}")
+    if "polygon" not in region:
+        raise ValueError(f"region {region_id} missing polygon")
+    polygon = region["polygon"]
+    if not isinstance(polygon, list) or len(polygon) < 3:
+        raise ValueError(f"region {region_id} polygon must have at least 3 points")
+    for point_index, point in enumerate(polygon):
+        if not isinstance(point, (list, tuple)) or len(point) != 2:
+            raise ValueError(f"region {region_id} polygon point {point_index} invalid")
+        if not all(
+            isinstance(value, (int, float)) and not isinstance(value, bool)
+            for value in point
+        ):
+            raise ValueError(f"region {region_id} polygon point {point_index} invalid")
+    return polygon
+
+
 def region_for_pose(task_map, x, y):
-    for region in task_map.get("regions", []):
-        if point_in_polygon(x, y, region["polygon"]):
+    for index, region in enumerate(task_map.get("regions", [])):
+        polygon = validate_region_polygon(region, index)
+        if point_in_polygon(x, y, polygon):
             return region
     return None
 

@@ -51,6 +51,11 @@ class LocalizationModeSupervisor(Node):
             self.mode_pub.publish(String(data="DEGRADED; reason=outside_regions"))
             return
         mode = region.get("localization_mode", "INDOOR")
+        if mode not in SUPPORTED_MODES:
+            self.mode_pub.publish(
+                String(data=f"DEGRADED; reason=unknown_region_mode:{mode}")
+            )
+            return
         self.mode_pub.publish(String(data=f"{mode}; region={region['id']}"))
 
 

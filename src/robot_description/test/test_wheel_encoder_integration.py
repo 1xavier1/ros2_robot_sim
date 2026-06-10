@@ -1626,6 +1626,30 @@ def test_task_map_core_finds_region_for_pose():
     assert region["localization_mode"] == "OUTDOOR"
 
 
+def test_task_map_core_treats_shared_region_boundary_as_inside():
+    module = load_script_module("task_map_core.py")
+    task_map = module.load_task_map(WORKSPACE_DIR / "config" / "task_map.example.yaml")
+
+    region = module.region_for_pose(task_map, x=6.0, y=1.0)
+
+    assert region["id"] == "sim_yard"
+
+
+def test_task_map_core_reports_invalid_region_polygon():
+    module = load_script_module("task_map_core.py")
+    task_map = module.load_task_map(WORKSPACE_DIR / "config" / "task_map.example.yaml")
+    del task_map["regions"][0]["polygon"]
+
+    with pytest.raises(ValueError, match="region sim_yard missing polygon"):
+        module.region_for_pose(task_map, x=1.0, y=1.0)
+
+    task_map = module.load_task_map(WORKSPACE_DIR / "config" / "task_map.example.yaml")
+    task_map["regions"][0]["polygon"] = [[0.0, 0.0], [1.0], [0.0, 1.0]]
+
+    with pytest.raises(ValueError, match="region sim_yard polygon point 1"):
+        module.region_for_pose(task_map, x=1.0, y=1.0)
+
+
 def test_localization_mode_supervisor_declares_mode_topics():
     script = read(WORKSPACE_DIR / "scripts" / "localization_mode_supervisor.py")
 
@@ -1637,6 +1661,13 @@ def test_localization_mode_supervisor_declares_mode_topics():
     assert "TRANSITION" in script
     assert "INDOOR" in script
     assert "DEGRADED" in script
+
+
+def test_localization_mode_supervisor_degrades_unknown_region_mode():
+    script = read(WORKSPACE_DIR / "scripts" / "localization_mode_supervisor.py")
+
+    assert "mode not in SUPPORTED_MODES" in script
+    assert "unknown_region_mode" in script
 
 
 def test_task_map_core_rejects_reverse_route_when_profile_disallows_reverse():

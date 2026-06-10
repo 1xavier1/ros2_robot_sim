@@ -52,6 +52,28 @@ def validate_task_map(task_map):
     return task_map
 
 
+def point_in_polygon(x, y, polygon):
+    inside = False
+    j = len(polygon) - 1
+    for i, point in enumerate(polygon):
+        xi, yi = point
+        xj, yj = polygon[j]
+        intersects = ((yi > y) != (yj > y)) and (
+            x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-12) + xi
+        )
+        if intersects:
+            inside = not inside
+        j = i
+    return inside
+
+
+def region_for_pose(task_map, x, y):
+    for region in task_map.get("regions", []):
+        if point_in_polygon(x, y, region["polygon"]):
+            return region
+    return None
+
+
 def yaw_from_quaternion(q):
     return math.atan2(
         2.0 * (q.w * q.z + q.x * q.y),

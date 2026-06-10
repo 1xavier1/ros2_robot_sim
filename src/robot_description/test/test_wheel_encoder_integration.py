@@ -1616,6 +1616,29 @@ def test_task_map_core_loads_example_task_map():
     assert task_map["tasks"][0]["type"] == "taught_route"
 
 
+def test_task_map_core_finds_region_for_pose():
+    module = load_script_module("task_map_core.py")
+    task_map = module.load_task_map(WORKSPACE_DIR / "config" / "task_map.example.yaml")
+
+    region = module.region_for_pose(task_map, x=1.0, y=1.0)
+
+    assert region["id"] == "sim_yard"
+    assert region["localization_mode"] == "OUTDOOR"
+
+
+def test_localization_mode_supervisor_declares_mode_topics():
+    script = read(WORKSPACE_DIR / "scripts" / "localization_mode_supervisor.py")
+
+    assert "class LocalizationModeSupervisor" in script
+    assert "/localization/global_odom" in script
+    assert "/localization/wheel_lio_status" in script
+    assert "/localization/supervised_mode" in script
+    assert "OUTDOOR" in script
+    assert "TRANSITION" in script
+    assert "INDOOR" in script
+    assert "DEGRADED" in script
+
+
 def test_task_map_core_rejects_reverse_route_when_profile_disallows_reverse():
     module = load_script_module("task_map_core.py")
     task_map = module.load_task_map(WORKSPACE_DIR / "config" / "task_map.example.yaml")

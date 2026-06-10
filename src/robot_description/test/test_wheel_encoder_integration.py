@@ -7,6 +7,7 @@ import math
 import re
 import xml.etree.ElementTree as ET
 
+import pytest
 import yaml
 from rclpy.time import Time
 
@@ -1628,3 +1629,21 @@ def test_task_map_core_rejects_reverse_route_when_profile_disallows_reverse():
     }
 
     assert module.route_allows_execution(task_map, route) is False
+
+
+def test_task_map_core_rejects_duplicate_motion_profile_ids():
+    module = load_script_module("task_map_core.py")
+    task_map = module.load_task_map(WORKSPACE_DIR / "config" / "task_map.example.yaml")
+    task_map["motion_profiles"].append(dict(task_map["motion_profiles"][0]))
+
+    with pytest.raises(ValueError, match="duplicate motion_profile id"):
+        module.motion_profiles_by_id(task_map)
+
+
+def test_task_map_core_rejects_invalid_core_field_types():
+    module = load_script_module("task_map_core.py")
+    task_map = module.load_task_map(WORKSPACE_DIR / "config" / "task_map.example.yaml")
+    task_map["site"] = None
+
+    with pytest.raises(ValueError, match="task_map.site must be a mapping"):
+        module.validate_task_map(task_map)

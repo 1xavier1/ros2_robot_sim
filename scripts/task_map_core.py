@@ -18,6 +18,15 @@ REQUIRED_TOP_LEVEL_KEYS = (
     "map_overlays",
 )
 
+MAPPING_TOP_LEVEL_KEYS = ("site", "maps", "map_overlays")
+LIST_TOP_LEVEL_KEYS = (
+    "motion_profiles",
+    "regions",
+    "waypoints",
+    "recorded_routes",
+    "tasks",
+)
+
 
 def load_task_map(path):
     with Path(path).open("r", encoding="utf-8") as stream:
@@ -32,6 +41,12 @@ def validate_task_map(task_map):
     missing = [key for key in REQUIRED_TOP_LEVEL_KEYS if key not in task_map]
     if missing:
         raise ValueError(f"task_map missing keys: {', '.join(missing)}")
+    for key in MAPPING_TOP_LEVEL_KEYS:
+        if not isinstance(task_map[key], dict):
+            raise ValueError(f"task_map.{key} must be a mapping")
+    for key in LIST_TOP_LEVEL_KEYS:
+        if not isinstance(task_map[key], list):
+            raise ValueError(f"task_map.{key} must be a list")
     if task_map["site"].get("map_frame") != "map":
         raise ValueError("P0 task_map site.map_frame must be map")
     return task_map
@@ -45,7 +60,13 @@ def yaw_from_quaternion(q):
 
 
 def motion_profiles_by_id(task_map):
-    return {profile["id"]: profile for profile in task_map.get("motion_profiles", [])}
+    profiles = {}
+    for profile in task_map.get("motion_profiles", []):
+        profile_id = profile["id"]
+        if profile_id in profiles:
+            raise ValueError(f"duplicate motion_profile id: {profile_id}")
+        profiles[profile_id] = profile
+    return profiles
 
 
 def route_allows_execution(task_map, route):

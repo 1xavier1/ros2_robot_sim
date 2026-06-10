@@ -98,3 +98,20 @@ def route_allows_execution(task_map, route):
     if profile.get("allow_reverse", False):
         return True
     return all(point.get("direction", "forward") != "reverse" for point in route["path"])
+
+
+def item_by_id(items, item_id, kind):
+    for item in items:
+        if item.get("id") == item_id:
+            return item
+    raise ValueError(f"unknown {kind}: {item_id}")
+
+
+def goal_poses_for_task(task_map, task_id):
+    task = item_by_id(task_map["tasks"], task_id, "task")
+    if task.get("type") != "taught_route":
+        raise ValueError(f"unsupported task type: {task.get('type')}")
+    route = item_by_id(task_map["recorded_routes"], task["route"], "recorded_route")
+    if not route_allows_execution(task_map, route):
+        raise ValueError(f"route {route['id']} violates motion profile")
+    return [tuple(point["pose"]) for point in route["path"]]

@@ -1649,6 +1649,17 @@ def test_task_map_core_rejects_invalid_core_field_types():
         module.validate_task_map(task_map)
 
 
+def test_task_map_core_converts_taught_route_to_goal_poses():
+    module = load_script_module("task_map_core.py")
+    task_map = module.load_task_map(WORKSPACE_DIR / "config" / "task_map.example.yaml")
+
+    poses = module.goal_poses_for_task(task_map, "daily_patrol")
+
+    assert len(poses) == 3
+    assert poses[0] == (0.0, 0.0, 0.0)
+    assert poses[-1] == (2.0, 0.2, 0.1)
+
+
 def test_route_recorder_samples_by_distance_or_yaw_change():
     module = load_script_module("task_map_core.py")
     samples = []
@@ -1691,3 +1702,15 @@ def test_route_recorder_uses_single_configurable_pose_topic():
     assert 'pose_topic = self.get_parameter("pose_topic").value' in script
     assert "Odometry, pose_topic, self.on_pose, 10" in script
     assert script.count("self.on_pose") == 1
+
+
+def test_task_executor_exposes_task_commands_and_status_topics():
+    script = read(WORKSPACE_DIR / "scripts" / "task_executor.py")
+
+    assert "class TaskExecutor" in script
+    assert "/task/command" in script
+    assert "/task/status" in script
+    assert "/task/current_goal" in script
+    assert "NavigateThroughPoses" in script or "NavigateToPose" in script
+    assert "BLOCKED" in script
+    assert "allow_reverse" in script

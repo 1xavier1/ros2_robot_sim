@@ -1737,5 +1737,9 @@ def test_task_executor_exposes_task_commands_and_status_topics():
     assert "active_goal_handle" in script
     assert "STATUS_SUCCEEDED" in script
     assert "result.status == 4" not in script
+    assert 'if self.active_goal_handle is not None:' in script
+    assert 'if self.state == "RUNNING":' not in script
+    assert "RUNNING; warning=unsupported_command" in script
+    assert "active_goal=true" not in script
     for unsupported_state in ("PAUSED", "CANCELLED", "RETURNING_HOME"):
         assert unsupported_state not in script

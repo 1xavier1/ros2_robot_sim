@@ -46,7 +46,7 @@ class TaskExecutor(Node):
             self.publish_unsupported(command)
 
     def start_task(self, task_id):
-        if self.state == "RUNNING":
+        if self.active_goal_handle is not None:
             self.publish_status("BLOCKED; reason=task_already_running")
             return
         try:
@@ -115,6 +115,10 @@ class TaskExecutor(Node):
             self.publish_status(f"BLOCKED; reason=nav2_status_{result.status}")
 
     def publish_unsupported(self, command):
+        if self.active_goal_handle is not None:
+            self.state = "RUNNING"
+            self.publish_status(f"RUNNING; warning=unsupported_command:{command}")
+            return
         self.state = "BLOCKED"
         self.publish_status(f"BLOCKED; reason=unsupported_command:{command}")
 

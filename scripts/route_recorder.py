@@ -23,6 +23,7 @@ class RouteRecorder(Node):
         super().__init__("route_recorder")
         self.declare_parameter("task_map_template", "config/task_map.example.yaml")
         self.declare_parameter("task_map_output", "maps/task_map.yaml")
+        self.declare_parameter("pose_topic", "/localization/global_odom")
         self.declare_parameter("min_sample_distance", 0.3)
         self.declare_parameter("min_yaw_change", 0.25)
 
@@ -34,12 +35,9 @@ class RouteRecorder(Node):
 
         self.status_pub = self.create_publisher(String, "/teach/status", 10)
         self.create_subscription(String, "/teach/command", self.on_command, 10)
-        self.create_subscription(
-            Odometry, "/localization/global_odom", self.on_pose, 10
-        )
-        self.create_subscription(
-            Odometry, "/localization/wheel_lio_odom", self.on_pose, 10
-        )
+        pose_topic = self.get_parameter("pose_topic").value
+        # Alternative pose_topic for wheel-LIO-only teaching: /localization/wheel_lio_odom.
+        self.create_subscription(Odometry, pose_topic, self.on_pose, 10)
         self.create_subscription(Odometry, "/robot/odom", self.on_wheel_odom, 10)
 
     def on_pose(self, msg):

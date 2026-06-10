@@ -1672,6 +1672,7 @@ def test_route_recorder_declares_teach_interfaces_and_outputs_task_map():
     script = read(WORKSPACE_DIR / "scripts" / "route_recorder.py")
 
     assert "class RouteRecorder" in script
+    assert 'declare_parameter("pose_topic", "/localization/global_odom")' in script
     assert "/teach/command" in script
     assert "/teach/status" in script
     assert "/localization/global_odom" in script
@@ -1682,3 +1683,11 @@ def test_route_recorder_declares_teach_interfaces_and_outputs_task_map():
     assert "stop_recording" in script
     assert "save_task_map" in script
     assert "task_map.yaml" in script
+
+
+def test_route_recorder_uses_single_configurable_pose_topic():
+    script = read(WORKSPACE_DIR / "scripts" / "route_recorder.py")
+
+    assert 'pose_topic = self.get_parameter("pose_topic").value' in script
+    assert "Odometry, pose_topic, self.on_pose, 10" in script
+    assert script.count("self.on_pose") == 1

@@ -1647,3 +1647,26 @@ def test_task_map_core_rejects_invalid_core_field_types():
 
     with pytest.raises(ValueError, match="task_map.site must be a mapping"):
         module.validate_task_map(task_map)
+
+
+def test_route_recorder_samples_by_distance_or_yaw_change():
+    module = load_script_module("task_map_core.py")
+    samples = []
+
+    assert module.should_append_route_sample(samples, (0.0, 0.0, 0.0), 0.3, 0.25)
+    samples.append({"pose": [0.0, 0.0, 0.0], "direction": "forward"})
+    assert not module.should_append_route_sample(samples, (0.1, 0.0, 0.01), 0.3, 0.25)
+    assert module.should_append_route_sample(samples, (0.31, 0.0, 0.01), 0.3, 0.25)
+    assert module.should_append_route_sample(samples, (0.1, 0.0, 0.30), 0.3, 0.25)
+
+
+def test_route_recorder_declares_teach_interfaces_and_outputs_task_map():
+    script = read(WORKSPACE_DIR / "scripts" / "route_recorder.py")
+
+    assert "class RouteRecorder" in script
+    assert "/teach/command" in script
+    assert "/teach/status" in script
+    assert "/localization/global_odom" in script
+    assert "/localization/wheel_lio_odom" in script
+    assert "save_task_map" in script
+    assert "task_map.yaml" in script

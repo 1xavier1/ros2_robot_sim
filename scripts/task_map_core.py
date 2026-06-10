@@ -59,6 +59,27 @@ def yaw_from_quaternion(q):
     )
 
 
+def wrap_angle(angle):
+    while angle > math.pi:
+        angle -= 2.0 * math.pi
+    while angle < -math.pi:
+        angle += 2.0 * math.pi
+    return angle
+
+
+def should_append_route_sample(samples, pose, min_distance, min_yaw_change):
+    if not samples:
+        return True
+    previous = samples[-1]["pose"]
+    distance = math.hypot(pose[0] - previous[0], pose[1] - previous[1])
+    yaw_change = abs(wrap_angle(pose[2] - previous[2]))
+    return distance >= min_distance or yaw_change >= min_yaw_change
+
+
+def direction_from_linear_velocity(linear_x):
+    return "reverse" if linear_x < -1e-4 else "forward"
+
+
 def motion_profiles_by_id(task_map):
     profiles = {}
     for profile in task_map.get("motion_profiles", []):

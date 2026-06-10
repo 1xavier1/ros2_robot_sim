@@ -1602,3 +1602,29 @@ def test_wheel_lio_robust_fusion_does_not_use_ground_truth_for_production():
     assert 'default="/localization/wheel_lio_odom"' in exporter
     assert "--reference-topic" in exporter
     assert "/robot/ground_truth/odom" in exporter
+
+
+def test_task_map_core_loads_example_task_map():
+    module = load_script_module("task_map_core.py")
+
+    task_map = module.load_task_map(WORKSPACE_DIR / "config" / "task_map.example.yaml")
+
+    assert task_map["site"]["map_frame"] == "map"
+    assert task_map["maps"]["nav2_map"].endswith(".yaml")
+    assert task_map["motion_profiles"][0]["allow_reverse"] is False
+    assert task_map["tasks"][0]["type"] == "taught_route"
+
+
+def test_task_map_core_rejects_reverse_route_when_profile_disallows_reverse():
+    module = load_script_module("task_map_core.py")
+    task_map = module.load_task_map(WORKSPACE_DIR / "config" / "task_map.example.yaml")
+    route = {
+        "id": "bad_reverse",
+        "motion_profile": "forward_only_safe",
+        "path": [
+            {"pose": [0.0, 0.0, 0.0], "direction": "forward"},
+            {"pose": [0.5, 0.0, 0.0], "direction": "reverse"},
+        ],
+    }
+
+    assert module.route_allows_execution(task_map, route) is False

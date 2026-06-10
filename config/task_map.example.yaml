@@ -1,0 +1,67 @@
+site:
+  id: barn_sim_site
+  map_frame: map
+
+maps:
+  nav2_map: maps/manual_wheel_lio_map_test.yaml
+  pointcloud_map: maps/lio_cloud_map_manual.pcd
+  source: simulation
+
+motion_profiles:
+  - id: forward_only_safe
+    vehicle_model: ackermann
+    allow_reverse: false
+    min_turning_radius: 0.78
+    max_forward_speed: 0.35
+    max_reverse_speed: 0.0
+
+regions:
+  - id: sim_yard
+    type: outdoor
+    polygon: [[-2.0, -2.0], [6.0, -2.0], [6.0, 4.0], [-2.0, 4.0]]
+    localization_mode: OUTDOOR
+    gps_policy: prefer_gps
+    speed_limit: 0.35
+  - id: sim_lane
+    type: indoor
+    polygon: [[6.0, -2.0], [30.0, -2.0], [30.0, 4.0], [6.0, 4.0]]
+    localization_mode: INDOOR
+    gps_policy: disabled
+    speed_limit: 0.20
+
+waypoints:
+  - id: home
+    pose: [0.0, 0.0, 0.0]
+    role: docking_home
+    source: example
+
+recorded_routes:
+  - id: example_route
+    motion_profile: forward_only_safe
+    source: example
+    sample_policy:
+      min_distance: 0.3
+      min_yaw_change: 0.25
+    path:
+      - pose: [0.0, 0.0, 0.0]
+        direction: forward
+      - pose: [1.0, 0.0, 0.0]
+        direction: forward
+      - pose: [2.0, 0.2, 0.1]
+        direction: forward
+
+tasks:
+  - id: daily_patrol
+    type: taught_route
+    route: example_route
+    start: home
+    finish: home
+    failure_policy:
+      nav_retry_count: 1
+      on_failure: stop_and_wait
+
+map_overlays:
+  keepout_zones: []
+  speed_zones: []
+  temporary_obstacles: []
+  map_corrections: []

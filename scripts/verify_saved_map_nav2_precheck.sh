@@ -25,7 +25,7 @@ if grep -q "Created controller : FollowPath" <<< "$OUTPUT" \
     && grep -q "Created global planner plugin GridBased" <<< "$OUTPUT" \
     && grep -q "Configuring bt_navigator" <<< "$OUTPUT"; then
     if grep -q 'Invalid frame ID "map"' <<< "$OUTPUT"; then
-        echo "saved-map Nav2 plugins are available; map->base_link TF is still required for activation"
+        echo "saved-map Nav2 plugins are available; map->base_footprint TF is still required for activation"
     else
         echo "saved-map Nav2 plugins are available"
     fi

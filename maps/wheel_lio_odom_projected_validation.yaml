@@ -1,0 +1,7 @@
+image: wheel_lio_odom_projected_validation.pgm
+mode: trinary
+resolution: 0.100000
+origin: [-2.300000, -3.100000, 0.000000]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.25

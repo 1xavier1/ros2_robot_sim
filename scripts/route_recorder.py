@@ -18,6 +18,27 @@ from task_map_core import (
 )
 
 
+def upsert_by_id(items, item):
+    item_id = item.get("id")
+    if not item_id:
+        return list(items)
+    merged = [existing for existing in items if existing.get("id") != item_id]
+    merged.append(item)
+    return merged
+
+
+def merge_task_maps(existing, updates):
+    merged = copy.deepcopy(existing)
+    for key in ("site", "maps", "map_overlays"):
+        merged.setdefault(key, {})
+        merged[key].update(updates.get(key, {}))
+    for key in ("motion_profiles", "regions", "waypoints", "recorded_routes", "tasks"):
+        merged.setdefault(key, [])
+        for item in updates.get(key, []):
+            merged[key] = upsert_by_id(merged[key], item)
+    return merged
+
+
 class RouteRecorder(Node):
     def __init__(self):
         super().__init__("route_recorder")
@@ -39,6 +60,12 @@ class RouteRecorder(Node):
         # Alternative pose_topic for wheel-LIO-only teaching: /localization/wheel_lio_odom.
         self.create_subscription(Odometry, pose_topic, self.on_pose, 10)
         self.create_subscription(Odometry, "/robot/odom", self.on_wheel_odom, 10)
+
+    def load_existing_task_map(self):
+        output = Path(self.get_parameter("task_map_output").value)
+        if output.exists():
+            return load_task_map(output)
+        return load_task_map(self.get_parameter("task_map_template").value)
 
     def on_pose(self, msg):
         yaw = yaw_from_quaternion(msg.pose.pose.orientation)
@@ -72,12 +99,13 @@ class RouteRecorder(Node):
         if self.latest_pose is None:
             self.publish_status("teach=blocked; reason=no_pose")
             return
-        self.task_map["waypoints"].append({
+        waypoint = {
             "id": waypoint_id,
             "pose": list(self.latest_pose),
             "role": role,
             "source": "taught",
-        })
+        }
+        self.task_map["waypoints"] = upsert_by_id(self.task_map["waypoints"], waypoint)
         self.publish_status(f"teach=marked; waypoint={waypoint_id}")
 
     def start_recording(self, route_id):
@@ -107,7 +135,9 @@ class RouteRecorder(Node):
             },
             "path": copy.deepcopy(self.samples),
         }
-        self.task_map["recorded_routes"].append(route)
+        self.task_map["recorded_routes"] = upsert_by_id(
+            self.task_map["recorded_routes"], route
+        )
         self.publish_status(
             f"teach=stopped; route={self.recording_route_id}; samples={len(self.samples)}"
         )
@@ -116,6 +146,7 @@ class RouteRecorder(Node):
     def save_task_map(self):
         output = Path(self.get_parameter("task_map_output").value)
         output.parent.mkdir(parents=True, exist_ok=True)
+        self.task_map = merge_task_maps(self.load_existing_task_map(), self.task_map)
         with output.open("w", encoding="utf-8") as stream:
             yaml.safe_dump(self.task_map, stream, allow_unicode=False, sort_keys=False)
         self.publish_status(f"teach=saved; path={output}")

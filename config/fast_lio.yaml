@@ -61,8 +61,9 @@
       fov_degree: 360.0
 
       # det_range: maximum mapping detection range.
-      # Unit: m.
-      det_range: 100.0
+      # Unit: m. Corridor/tunnel simulation uses a bounded range to avoid
+      # distant ceiling and repeated structure dominating local registration.
+      det_range: 30.0
 
       # extrinsic_est_en: online LiDAR-IMU extrinsic estimation switch.
       # Keep false in simulation and for calibrated real vehicles.
@@ -73,7 +74,7 @@
       extrinsic_T: [0.0, 0.0, 0.17]
 
       # extrinsic_R: LiDAR-to-IMU rotation matrix, row-major.
-      # Unit: dimensionless rotation matrix. Identity means aligned LiDAR/IMU axes.
+      # Unit: dimensionless rotation matrix. Matches sensor_mount.yaml lidar rpy.
       extrinsic_R: [1.0, 0.0, 0.0,
                     0.0, 1.0, 0.0,
                     0.0, 0.0, 1.0]

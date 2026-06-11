@@ -35,7 +35,74 @@ Visualization Manager:
         Z: 0
       Plane: XY
       Plane Cell Count: 20
-      Reference Frame: odom
+      Reference Frame: map
+      Value: true
+    - Alpha: 0.7
+      Class: rviz_default_plugins/Map
+      Color Scheme: map
+      Draw Behind: true
+      Enabled: true
+      Name: Nav2 Map
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /map
+      Update Topic: /map_updates
+      Use Timestamp: false
+      Value: true
+    - Alpha: 1
+      Class: rviz_default_plugins/Path
+      Color: 34; 197; 94
+      Enabled: true
+      Head Diameter: 0.3
+      Head Length: 0.2
+      Length: 0.3
+      Line Style: Lines
+      Line Width: 0.05
+      Name: Nav2 Plan
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0.02
+      Pose Color: 34; 197; 94
+      Pose Style: None
+      Radius: 0.03
+      Shaft Diameter: 0.1
+      Shaft Length: 0.1
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /plan
+      Value: true
+    - Alpha: 1
+      Class: rviz_default_plugins/Path
+      Color: 250; 204; 21
+      Enabled: true
+      Head Diameter: 0.3
+      Head Length: 0.2
+      Length: 0.3
+      Line Style: Lines
+      Line Width: 0.07
+      Name: Task Active Path
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0.04
+      Pose Color: 250; 204; 21
+      Pose Style: None
+      Radius: 0.03
+      Shaft Diameter: 0.1
+      Shaft Length: 0.1
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /task/active_path
       Value: true
     - Alpha: 1
       Class: rviz_default_plugins/RobotModel
@@ -177,7 +244,7 @@ Visualization Manager:
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: odom
+    Fixed Frame: map
     Frame Rate: 30
   Name: root
   Tools:

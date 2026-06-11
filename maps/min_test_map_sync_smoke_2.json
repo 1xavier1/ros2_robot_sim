@@ -1,0 +1,40 @@
+{
+  "frames": 17,
+  "occupied_points": 361,
+  "map_width": 431,
+  "map_height": 99,
+  "pose_topic": "/localization/wheel_lio_odom",
+  "odom_topic": null,
+  "lio_odom_topic": "/mapping/lio/odom",
+  "reference_metrics": {
+    "reference_topic": "/robot/ground_truth/odom",
+    "available": true
+  },
+  "filter_stats": {
+    "raw_points": 378709,
+    "range_points": 377264,
+    "self_filtered_points": 377264,
+    "height_low_points": 97155,
+    "height_points": 272850,
+    "height_high_points": 7259
+  },
+  "skipped_clouds_no_pose": 1,
+  "max_pose_age": 0.12,
+  "diagnostics": {
+    "odom_delta": {
+      "x": 0.0027613307763285633,
+      "y": 0.00038822725971721095,
+      "yaw": 0.00015988760113166967
+    },
+    "lio_delta": {
+      "x": 0.0004876526731525388,
+      "y": 0.0009928803010257337,
+      "yaw": 0.00015893166152619598
+    },
+    "delta_error": {
+      "x": -0.0022736781031760245,
+      "y": 0.0006046530413085227,
+      "yaw": -9.559396054736877e-07
+    }
+  }
+}

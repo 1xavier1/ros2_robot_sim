@@ -26,6 +26,23 @@ if echo "$OUTPUT" | grep -q "spark_lio_mapping"; then
     exit 0
 fi
 
+check_topic_once() {
+    local topic="$1"
+    if timeout 8s ros2 topic echo "$topic" --once >/dev/null 2>&1; then
+        echo "ok: $topic"
+        return 0
+    fi
+    return 1
+}
+
+if check_topic_once "/sensing/lidar/points" \
+    && check_topic_once "/sensing/imu/data" \
+    && check_topic_once "/mapping/lio/odom" \
+    && check_topic_once "/mapping/lio/map_points"; then
+    echo "fast-lio2 input and mapping topics are publishing"
+    exit 0
+fi
+
 if timeout 8s ros2 topic list | grep -Eq "/mapping/lio/odom|/mapping/lio/map_points"; then
     echo "fast-lio2 mapping topics are present"
     exit 0

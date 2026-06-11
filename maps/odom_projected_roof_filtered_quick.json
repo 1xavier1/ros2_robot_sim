@@ -1,0 +1,33 @@
+{
+  "frames": 134,
+  "occupied_points": 249,
+  "map_width": 203,
+  "map_height": 98,
+  "odom_topic": "/robot/odom",
+  "lio_odom_topic": "/mapping/lio/odom",
+  "filter_stats": {
+    "raw_points": 2629014,
+    "range_points": 2581322,
+    "self_filtered_points": 2581322,
+    "height_low_points": 1070507,
+    "height_points": 1473649,
+    "height_high_points": 37166
+  },
+  "diagnostics": {
+    "odom_delta": {
+      "x": 0.30027464959426375,
+      "y": 0.021857496509618532,
+      "yaw": 0.06421283252126103
+    },
+    "lio_delta": {
+      "x": 0.03609240884432405,
+      "y": -0.055882763347996245,
+      "yaw": 0.07188820535760468
+    },
+    "delta_error": {
+      "x": -0.2641822407499397,
+      "y": -0.07774025985761478,
+      "yaw": 0.007675372836343647
+    }
+  }
+}

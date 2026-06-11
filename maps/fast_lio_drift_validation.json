@@ -1,0 +1,29 @@
+{
+  "estimates": {
+    "/localization/wheel_lio_odom": {
+      "drift_per_meter": 0.0012775085622109708,
+      "estimate_distance": 1.4978598688241924,
+      "reference_distance": 1.4978012687715616,
+      "scale_ratio": 1.0000391240506017,
+      "translation_error": 0.0019134539453461255,
+      "yaw_error": -0.0017293638892101788
+    },
+    "/mapping/lio/odom": {
+      "drift_per_meter": 0.0025143823532102895,
+      "estimate_distance": 1.494235903860021,
+      "reference_distance": 1.4978012687715616,
+      "scale_ratio": 0.9976196008202979,
+      "translation_error": 0.003766045078815196,
+      "yaw_error": -0.0017005242598861804
+    },
+    "/robot/odom": {
+      "drift_per_meter": 0.0,
+      "estimate_distance": 1.4978012687715616,
+      "reference_distance": 1.4978012687715616,
+      "scale_ratio": 1.0,
+      "translation_error": 0.0,
+      "yaw_error": 0.0
+    }
+  },
+  "reference_topic": "/robot/ground_truth/odom"
+}

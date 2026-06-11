@@ -8,7 +8,12 @@ from ament_index_python.packages import (
     get_package_share_directory,
 )
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, LogInfo, SetEnvironmentVariable
+from launch.actions import (
+    DeclareLaunchArgument,
+    LogInfo,
+    SetEnvironmentVariable,
+    TimerAction,
+)
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -62,23 +67,25 @@ def generate_launch_description():
             '--y', '0',
             '--z', '0.25',
             '--roll', '0',
-            '--pitch', '0.5235987756',
+            '--pitch', '0',
             '--yaw', '0',
             '--frame-id', 'base_link',
             '--child-frame-id', 'laser_link',
         ],
     ))
-    launch_actions.append(Node(
+    fast_lio_node = Node(
         package=package_name,
         executable=executable_name,
         name='fast_lio2',
         output='screen',
         parameters=[config_file, {'use_sim_time': use_sim_time}],
         remappings=[
+            ('/tf', '/mapping/lio/tf'),
             ('lidar', '/sensing/lidar/points'),
             ('imu', '/sensing/imu/data'),
             ('odometry', '/mapping/lio/odom'),
             ('cloud_registered', '/mapping/lio/map_points'),
         ],
-    ))
+    )
+    launch_actions.append(TimerAction(period=3.0, actions=[fast_lio_node]))
     return LaunchDescription(launch_actions)

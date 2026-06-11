@@ -11,7 +11,7 @@ lidar:
 
   # rpy: LiDAR roll, pitch, yaw relative to parent_frame, unit rad.
   # Right-hand rule: roll about X, pitch about Y, yaw about Z.
-  rpy: [0.0, 0.524, 0.0]
+  rpy: [0.0, 0.0, 0.0]
 
   # min_range / max_range: accepted LiDAR point distance, unit m.
   min_range: 0.1

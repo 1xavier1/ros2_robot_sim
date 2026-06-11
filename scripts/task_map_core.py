@@ -135,6 +135,32 @@ def direction_from_linear_velocity(linear_x):
     return "reverse" if linear_x < 0.0 else "forward"
 
 
+def xy_distance(pose_a, pose_b):
+    return math.hypot(pose_a[0] - pose_b[0], pose_a[1] - pose_b[1])
+
+
+def adapt_start_pose_for_ackermann(
+    poses,
+    current_pose=None,
+    skip_distance=0.8,
+    nearest_distance=2.0,
+):
+    if not poses or current_pose is None:
+        return list(poses)
+    adapted = [tuple(pose) for pose in poses]
+    nearest_index = min(
+        range(len(adapted)),
+        key=lambda index: xy_distance(adapted[index], current_pose),
+    )
+    if xy_distance(adapted[nearest_index], current_pose) <= nearest_distance:
+        adapted = adapted[nearest_index:]
+    if len(adapted) > 1 and xy_distance(adapted[0], current_pose) <= skip_distance:
+        adapted = adapted[1:]
+    elif adapted:
+        adapted[0] = (adapted[0][0], adapted[0][1], current_pose[2])
+    return adapted
+
+
 def motion_profiles_by_id(task_map):
     profiles = {}
     for profile in task_map.get("motion_profiles", []):
@@ -190,6 +216,23 @@ def validate_route_path(route, task_id):
 
 def goal_poses_for_task(task_map, task_id):
     task = item_by_id(task_map["tasks"], task_id, "task")
+    if task.get("type") == "waypoint_sequence":
+        waypoint_ids = task.get("waypoints", [])
+        if not isinstance(waypoint_ids, list) or not waypoint_ids:
+            raise ValueError(f"task {task_id} missing waypoints")
+        poses = []
+        for waypoint_id in waypoint_ids:
+            waypoint = item_by_id(task_map["waypoints"], waypoint_id, "waypoint")
+            pose = waypoint.get("pose")
+            if not isinstance(pose, (list, tuple)) or len(pose) != 3:
+                raise ValueError(f"waypoint {waypoint_id} pose must be 3 numeric values")
+            if not all(
+                isinstance(value, (int, float)) and not isinstance(value, bool)
+                for value in pose
+            ):
+                raise ValueError(f"waypoint {waypoint_id} pose must be 3 numeric values")
+            poses.append(tuple(pose))
+        return poses
     if task.get("type") != "taught_route":
         raise ValueError(f"unsupported task type: {task.get('type')}")
     if "route" not in task:

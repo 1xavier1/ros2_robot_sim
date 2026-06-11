@@ -1,6 +1,7 @@
 build/
 install/
 log/
+.superpowers/
 src/third_party/
 *.pyc
 __pycache__/

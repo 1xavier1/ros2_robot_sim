@@ -6,6 +6,7 @@ import math
 from dataclasses import dataclass
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from nav_msgs.msg import Odometry
 from rclpy.duration import Duration
 from rclpy.node import Node
@@ -633,9 +634,12 @@ def main():
     node = WheelLioFusion()
     try:
         rclpy.spin(node)
+    except ExternalShutdownException:
+        pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == "__main__":

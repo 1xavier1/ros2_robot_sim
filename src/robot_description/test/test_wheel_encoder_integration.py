@@ -427,7 +427,7 @@ def test_navigation_config_respects_ackermann_constraints():
 
     assert "allow_reversing: false" in config
     assert "use_rotate_to_heading: false" in config
-    assert "min_turning_radius: 0.78" in config
+    assert "min_turning_radius: 1.6" in config
     assert "w_reverse_cost: 2.5" in config
     assert launch.count("('/cmd_vel', '/control/cmd_vel')") >= 2
     assert "('cmd_vel', '/control/cmd_vel')" in launch
@@ -454,6 +454,37 @@ def test_navigation_precheck_script_reports_missing_nav2_or_active_nodes():
     assert "Navigation2 precheck failed" in script
     assert "controller_server" in script
     assert "bt_navigator" in script
+
+
+def test_rviz_default_config_shows_nav2_occupancy_map():
+    rviz = read(WORKSPACE_DIR / "rviz" / "robot_config.rviz")
+
+    assert "Fixed Frame: map" in rviz
+    assert "Class: rviz_default_plugins/Map" in rviz
+    assert "Name: Nav2 Map" in rviz
+    assert "Value: /map" in rviz
+    assert "Durability Policy: Transient Local" in rviz
+
+
+def test_full_stack_start_script_keeps_launches_and_editable_options_visible():
+    script = read(WORKSPACE_DIR / "scripts" / "start_full_stack.sh")
+
+    for option in (
+        "GUI=",
+        "RVIZ=",
+        "ENABLE_TASK_NAVIGATION=",
+        "MAP=",
+        "TASK_MAP=",
+    ):
+        assert option in script
+
+    assert "robot_simulation.launch.py" in script
+    assert "fast_lio2.launch.py" in script
+    assert "navigation.launch.py" in script
+    assert "enable_task_navigation:=$ENABLE_TASK_NAVIGATION" in script
+    assert "trap cleanup SIGINT SIGTERM EXIT" in script
+    assert "source_setup" in script
+    assert "set +u" in script
 
 
 def test_gps_degradation_scenarios_are_documented():
@@ -612,6 +643,8 @@ def test_fast_lio2_config_and_launch_use_filtered_sensing_topics():
     assert "'--pitch', '0'" in launch
     assert "/mapping/lio/odom" in launch
     assert "/mapping/lio/map_points" in launch
+    assert "TimerAction" in launch
+    assert "period=3.0" in launch
 
 
 def test_fast_lio2_precheck_script_reports_missing_or_running_nodes():
@@ -671,7 +704,8 @@ def test_lio_wheel_fusion_publishes_fused_localization_odom():
 def test_global_localization_backend_publishes_optimized_odom_and_status():
     script = read(WORKSPACE_DIR / "scripts" / "global_localization_backend.py")
 
-    assert "/localization/fused_odom" in script
+    assert "input_odom_topic" in script
+    assert "/localization/wheel_lio_odom" in script
     assert "/robot/odom" in script
     assert "/localization/gps/gated" in script
     assert "/sensing/imu/data" in script
@@ -756,8 +790,8 @@ def test_navigation_controller_uses_humble_regulated_pure_pursuit_contract():
         'plugin: "nav2_regulated_pure_pursuit_controller::'
         'RegulatedPurePursuitController"'
     ) in config
-    assert "desired_linear_vel: 0.35" in config
-    assert "lookahead_dist: 0.6" in config
+    assert "desired_linear_vel: 0.20" in config
+    assert "lookahead_dist: 0.90" in config
     assert "use_rotate_to_heading: false" in config
     assert "allow_reversing: false" in config
     assert 'plugin: "dwb_core::DWBLocalPlanner"' not in config
@@ -964,7 +998,8 @@ def test_odom_projected_map_exporter_contract():
     script = read(WORKSPACE_DIR / "scripts" / "export_odom_projected_map.py")
 
     assert "/sensing/lidar/points" in script
-    assert "/robot/odom" in script
+    assert "/localization/wheel_lio_odom" in script
+    assert "--odom-topic" in script
     assert "/mapping/lio/odom" in script
     assert "diagnostics" in script
     assert "PointCloud2" in script
@@ -1074,6 +1109,20 @@ def test_odom_projected_map_splits_height_filter_stats():
     }
 
 
+def test_odom_projected_map_selects_pose_nearest_cloud_stamp():
+    module = load_script_module("export_odom_projected_map.py")
+
+    buffer = [
+        (1.0, (1.0, 0.0, 0.0)),
+        (2.0, (2.0, 0.0, 0.0)),
+        (3.0, (3.0, 0.0, 0.0)),
+    ]
+
+    assert module.nearest_pose_by_stamp(buffer, 2.2, max_age=0.35) == (2.0, 0.0, 0.0)
+    assert module.nearest_pose_by_stamp(buffer, 2.8, max_age=0.35) == (3.0, 0.0, 0.0)
+    assert module.nearest_pose_by_stamp(buffer, 2.5, max_age=0.1) is None
+
+
 def test_odom_projected_map_free_evidence_can_clear_weak_occupied_cells():
     module = load_script_module("export_odom_projected_map.py")
 
@@ -1154,20 +1203,32 @@ def test_navigation_launch_exposes_map_alignment_and_gps_anchor_controls():
         assert f"'{parameter}': {parameter}" in slam_navigation_launch
 
 
-def test_rviz_config_opens_with_odom_baseline_and_lio_overlays():
+def test_rviz_config_opens_with_nav2_map_baseline_and_lio_overlays():
     config = yaml.safe_load(read(WORKSPACE_DIR / "rviz" / "robot_config.rviz"))
     manager = config["Visualization Manager"]
     displays = manager["Displays"]
     display_names = {display["Name"] for display in displays}
 
-    assert manager["Global Options"]["Fixed Frame"] == "odom"
-    assert {"Grid", "RobotModel", "TF", "Raw LiDAR", "LIO Map", "LIO Odometry"} <= display_names
+    assert manager["Global Options"]["Fixed Frame"] == "map"
+    assert {
+        "Grid",
+        "Nav2 Map",
+        "RobotModel",
+        "TF",
+        "Raw LiDAR",
+        "LIO Map",
+        "LIO Odometry",
+        "Nav2 Plan",
+        "Task Active Path",
+    } <= display_names
     assert not config.get("Window Geometry", {}).get("Hide Left Dock", False)
     assert "QMainWindow State" not in config.get("Window Geometry", {})
-    assert all(
-        display.get("Class") != "rviz_default_plugins/Path"
+    path_topics = {
+        display["Topic"]["Value"]
         for display in displays
-    )
+        if display.get("Class") == "rviz_default_plugins/Path"
+    }
+    assert path_topics == {"/plan", "/task/active_path"}
 
 
 def test_fast_lio_drift_diagnostic_contract():
@@ -1216,6 +1277,8 @@ def test_wheel_lio_fusion_contract():
     assert "max_lio_translation_error" in script
     assert "compose_wheel_lio_pose" in script
     assert "lio=stale_waiting_anchor" in script
+    assert "ExternalShutdownException" in script
+    assert "rclpy.ok()" in script
     for expected in [
         "motion_window_min_distance",
         "wheel_lio_distance_warn",
@@ -1605,6 +1668,41 @@ def test_wheel_lio_robust_fusion_does_not_use_ground_truth_for_production():
     assert "/robot/ground_truth/odom" in exporter
 
 
+def test_odom_projected_exporter_uses_configurable_pose_and_reference_topics():
+    script = read(WORKSPACE_DIR / "scripts" / "export_odom_projected_map.py")
+
+    assert "--pose-topic" in script
+    assert "/localization/wheel_lio_odom" in script
+    assert "--reference-topic" in script
+    assert "/robot/ground_truth/odom" in script
+    assert "reference_metrics" in script
+
+
+def test_fast_lio_parameters_are_corridor_scoped_and_diagnostic_friendly():
+    config = yaml.safe_load(read(WORKSPACE_DIR / "config" / "fast_lio.yaml"))
+    text = read(WORKSPACE_DIR / "config" / "fast_lio.yaml")
+    verify = read(WORKSPACE_DIR / "scripts" / "verify_fast_lio2_precheck.sh")
+
+    params = config["/**"]["ros__parameters"]
+    assert params["mapping"]["det_range"] <= 30.0
+    assert "corridor" in text.lower() or "tunnel" in text.lower()
+    assert "/sensing/lidar/points" in verify
+    assert "/sensing/imu/data" in verify
+    assert "/mapping/lio/odom" in verify
+    assert "/mapping/lio/map_points" in verify
+
+
+def test_fast_lio_wheel_aided_validation_doc_exists():
+    doc = read(WORKSPACE_DIR / "docs" / "FAST_LIO2_WHEEL_AIDED_VALIDATION.md")
+
+    assert "fast_lio_drift_diagnostic.py" in doc
+    assert "wheel_lio_fusion.py" in doc
+    assert "export_odom_projected_map.py" in doc
+    assert "/robot/ground_truth/odom" in doc
+    assert "evaluation only" in doc
+    assert "/localization/wheel_lio_odom" in doc
+
+
 def test_task_map_core_loads_example_task_map():
     module = load_script_module("task_map_core.py")
 
@@ -1714,6 +1812,68 @@ def test_task_map_core_converts_taught_route_to_goal_poses():
     assert poses[-1] == (2.0, 0.2, 0.1)
 
 
+def test_task_map_core_converts_waypoint_sequence_to_goal_poses():
+    module = load_script_module("task_map_core.py")
+    task_map = module.load_task_map(WORKSPACE_DIR / "config" / "task_map.example.yaml")
+    task_map["waypoints"].append({"id": "feed_1", "pose": [3.0, 1.0, 0.2]})
+    task_map["tasks"].append({
+        "id": "feed_task",
+        "type": "waypoint_sequence",
+        "waypoints": ["home", "feed_1"],
+    })
+
+    poses = module.goal_poses_for_task(task_map, "feed_task")
+
+    assert poses == [(0.0, 0.0, 0.0), (3.0, 1.0, 0.2)]
+
+
+def test_task_executor_publishes_active_path_for_visualization():
+    script = (WORKSPACE_DIR / "scripts" / "task_executor.py").read_text(encoding="utf-8")
+
+    assert "from nav_msgs.msg import Path" in script
+    assert '"/task/active_path"' in script
+    assert "publish_active_path" in script
+
+
+def test_task_executor_cancels_nav_goal_for_manual_override():
+    script = (WORKSPACE_DIR / "scripts" / "task_executor.py").read_text(encoding="utf-8")
+
+    assert "manual_override" in script
+    assert "cancel_task" in script
+    assert "cancel_goal_async" in script
+    assert "MANUAL_OVERRIDE" in script
+
+
+def test_task_executor_reloads_task_map_before_starting_task():
+    script = (WORKSPACE_DIR / "scripts" / "task_executor.py").read_text(encoding="utf-8")
+
+    assert "reload_task_map" in script
+    assert "self.reload_task_map()" in script
+
+
+def test_nav2_planner_uses_forward_ackermann_turning_constraints():
+    config = yaml.safe_load(read(WORKSPACE_DIR / "config" / "navigation.yaml"))
+    planner = config["planner_server"]["ros__parameters"]["GridBased"]
+    controller = config["controller_server"]["ros__parameters"]["FollowPath"]
+    global_costmap = config["global_costmap"]["ros__parameters"]["global_costmap"]
+    local_costmap = config["local_costmap"]["ros__parameters"]["local_costmap"]
+
+    assert planner["plugin"] == "nav2_smac_planner/SmacPlannerHybrid"
+    assert planner["motion_model_for_search"] == "DUBIN"
+    assert planner["minimum_turning_radius"] >= 1.6
+    assert planner["reverse_penalty"] >= 100.0
+    assert planner["analytic_expansion_ratio"] >= 3.0
+    assert planner["lookup_table_size"] >= 20.0
+    assert planner["smooth_path"] is False
+    assert controller["allow_reversing"] is False
+    assert controller["regulated_linear_scaling_min_radius"] >= 1.6
+    assert controller["desired_linear_vel"] <= 0.2
+    assert "inflation_layer" in global_costmap["plugins"]
+    assert global_costmap["inflation_layer"]["inflation_radius"] >= 0.65
+    assert "inflation_layer" in local_costmap["plugins"]
+    assert local_costmap["inflation_layer"]["inflation_radius"] >= 0.65
+
+
 def test_goal_poses_rejects_task_without_route_context():
     module = load_script_module("task_map_core.py")
     task_map = module.load_task_map(WORKSPACE_DIR / "config" / "task_map.example.yaml")
@@ -1776,6 +1936,41 @@ def test_route_recorder_uses_single_configurable_pose_topic():
     assert script.count("self.on_pose") == 1
 
 
+def test_route_recorder_merges_existing_task_map_when_saving():
+    script = read(WORKSPACE_DIR / "scripts" / "route_recorder.py")
+
+    assert "merge_task_maps" in script
+    assert "load_existing_task_map" in script
+    assert "task_map_output" in script
+    assert "recorded_routes" in script
+    assert "upsert_by_id" in script
+
+
+def test_task_map_core_adapts_route_start_for_current_pose():
+    module = load_script_module("task_map_core.py")
+    poses = [
+        (0.0, 0.0, 3.14),
+        (1.0, 0.0, 0.0),
+        (2.0, 0.0, 0.0),
+    ]
+
+    skipped = module.adapt_start_pose_for_ackermann(
+        poses,
+        current_pose=(0.1, 0.0, 0.0),
+        skip_distance=0.5,
+        nearest_distance=2.0,
+    )
+    nearest = module.adapt_start_pose_for_ackermann(
+        poses,
+        current_pose=(0.9, 0.1, 1.0),
+        skip_distance=0.05,
+        nearest_distance=2.0,
+    )
+
+    assert skipped[0] == (1.0, 0.0, 0.0)
+    assert nearest[0] == (1.0, 0.0, 1.0)
+
+
 def test_task_executor_exposes_task_commands_and_status_topics():
     script = read(WORKSPACE_DIR / "scripts" / "task_executor.py")
 
@@ -1793,12 +1988,39 @@ def test_task_executor_exposes_task_commands_and_status_topics():
     assert "def has_active_or_pending_goal" in script
     assert "STATUS_SUCCEEDED" in script
     assert "result.status == 4" not in script
+
+
+def test_task_executor_supports_pause_resume_and_return_home():
+    script = read(WORKSPACE_DIR / "scripts" / "task_executor.py")
+
+    assert "def pause_task" in script
+    assert "def resume_task" in script
+    assert "def return_home" in script
+    assert "remaining_poses" in script
+    assert "home" in script
+    assert "cancel_goal_async" in script
+    assert "adapt_start_pose_for_ackermann" in script
     assert "if self.has_active_or_pending_goal():" in script
-    assert 'if self.state == "RUNNING":' not in script
-    assert "RUNNING; warning=unsupported_command" in script
+    assert 'self.state = "PAUSED"' in script
+    assert "RUNNING; task=return_home; goals=1" in script
     assert "active_goal=true" not in script
-    for unsupported_state in ("PAUSED", "CANCELLED", "RETURNING_HOME"):
-        assert unsupported_state not in script
+    assert "prepare_ackermann_goal_poses" in script
+    assert "WAITING_FOR_LOCALIZATION" in script
+    assert "pending_start_task_id" in script
+    assert "reason=no_current_pose" in script
+    assert "HOME_REACHED" in script
+    assert "home_already_within_tolerance" in script
+
+
+def test_full_stack_uses_runtime_task_map_for_remote_tasks():
+    script = read(WORKSPACE_DIR / "scripts" / "start_full_stack.sh")
+
+    assert 'RUNTIME_TASK_MAP="${RUNTIME_TASK_MAP:-maps/task_map.yaml}"' in script
+    assert 'TASK_MAP="${TASK_MAP:-$RUNTIME_TASK_MAP}"' in script
+    assert 'BUILD="${BUILD:-auto}"' in script
+    assert "install_is_stale" in script
+    assert "config/navigation.yaml" in script
+    assert "colcon build --packages-select robot_description" in script
 
 
 def test_navigation_launch_can_start_p0_task_nodes():

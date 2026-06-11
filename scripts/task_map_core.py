@@ -181,6 +181,30 @@ def route_allows_execution(task_map, route):
     return all(point.get("direction", "forward") != "reverse" for point in route["path"])
 
 
+def forward_executable_route_poses(route):
+    """Convert a taught route to forward-drive poses by using segment headings."""
+    points = route.get("path", [])
+    poses = [tuple(point["pose"]) for point in points]
+    if len(poses) <= 1:
+        return poses
+
+    converted = []
+    for index, pose in enumerate(poses):
+        if index < len(poses) - 1:
+            next_pose = poses[index + 1]
+            dx = next_pose[0] - pose[0]
+            dy = next_pose[1] - pose[1]
+            if math.hypot(dx, dy) > 1e-6:
+                yaw = math.atan2(dy, dx)
+            else:
+                yaw = pose[2]
+        else:
+            previous = converted[-1]
+            yaw = previous[2]
+        converted.append((pose[0], pose[1], yaw))
+    return converted
+
+
 def item_by_id(items, item_id, kind):
     for item in items:
         if item.get("id") == item_id:
@@ -242,3 +266,32 @@ def goal_poses_for_task(task_map, task_id):
     if not route_allows_execution(task_map, route):
         raise ValueError(f"route {route['id']} violates motion profile")
     return [tuple(point["pose"]) for point in route["path"]]
+
+
+def executable_goal_poses_for_task(task_map, task_id):
+    """Return poses plus warnings for the runtime task executor.
+
+    Validation remains strict through goal_poses_for_task().  At runtime,
+    however, a taught route recorded with short reverse sections can still be
+    useful for a forward-only Ackermann robot if we ignore the reverse tags and
+    recompute each pose yaw from the forward path tangent.
+    """
+    task = item_by_id(task_map["tasks"], task_id, "task")
+    if task.get("type") != "taught_route":
+        return goal_poses_for_task(task_map, task_id), []
+
+    route = item_by_id(task_map["recorded_routes"], task["route"], "recorded_route")
+    validate_route_path(route, task_id)
+    if route_allows_execution(task_map, route):
+        return [tuple(point["pose"]) for point in route["path"]], []
+
+    profiles = motion_profiles_by_id(task_map)
+    profile = profiles.get(route.get("motion_profile"))
+    if profile is None:
+        raise ValueError(f"unknown motion_profile: {route.get('motion_profile')}")
+    if profile.get("allow_reverse", False):
+        return [tuple(point["pose"]) for point in route["path"]], []
+
+    return forward_executable_route_poses(route), [
+        f"route={route['id']} reverse_tags_normalized_for_forward_only"
+    ]

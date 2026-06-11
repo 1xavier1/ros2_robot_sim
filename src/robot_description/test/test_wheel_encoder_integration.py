@@ -427,7 +427,7 @@ def test_navigation_config_respects_ackermann_constraints():
 
     assert "allow_reversing: false" in config
     assert "use_rotate_to_heading: false" in config
-    assert "min_turning_radius: 1.6" in config
+    assert "min_turning_radius: 0.95" in config
     assert "w_reverse_cost: 2.5" in config
     assert launch.count("('/cmd_vel', '/control/cmd_vel')") >= 2
     assert "('cmd_vel', '/control/cmd_vel')" in launch
@@ -790,7 +790,7 @@ def test_navigation_controller_uses_humble_regulated_pure_pursuit_contract():
         'plugin: "nav2_regulated_pure_pursuit_controller::'
         'RegulatedPurePursuitController"'
     ) in config
-    assert "desired_linear_vel: 0.20" in config
+    assert "desired_linear_vel: 0.35" in config
     assert "lookahead_dist: 0.90" in config
     assert "use_rotate_to_heading: false" in config
     assert "allow_reversing: false" in config
@@ -809,6 +809,8 @@ def test_navigation_bt_plugins_match_humble_installed_libraries():
 
     assert "nav2_rate_controller_bt_node" in config
     assert "nav2_goal_updated_condition_bt_node" in config
+    assert "nav2_globally_updated_goal_condition_bt_node" in config
+    assert "nav2_is_path_valid_condition_bt_node" in config
     assert "nav2_goal_updater_node_bt_node" in config
     assert "nav2_time_controller_bt_node" not in config
     assert "nav2_recovery_selector_bt_node" not in config
@@ -826,8 +828,11 @@ def test_navigation_bt_xml_paths_use_humble_existing_files():
 
     assert "$(find-pkg-share nav2_bt_navigator)" not in config
     assert "navigate_through_poses_w_replanning_and_recovery_no_remove.xml" in launch
-    assert "navigate_to_pose_w_replanning_and_recovery.xml" in config
+    assert "navigate_w_replanning_only_if_path_becomes_invalid.xml" in config
     assert "RemovePassedGoals" not in through_poses_bt
+    assert "IsPathValid" in through_poses_bt
+    assert "GlobalUpdatedGoal" in through_poses_bt
+    assert "ComputePathOnlyWhenInvalid" in through_poses_bt
     assert "ComputePathThroughPoses" in through_poses_bt
     assert "FollowPath" in through_poses_bt
 
@@ -1783,6 +1788,34 @@ def test_task_map_core_rejects_reverse_route_when_profile_disallows_reverse():
     assert module.route_allows_execution(task_map, route) is False
 
 
+def test_task_map_core_can_normalize_reverse_tags_for_forward_runtime():
+    module = load_script_module("task_map_core.py")
+    task_map = module.load_task_map(WORKSPACE_DIR / "config" / "task_map.example.yaml")
+    task_map["recorded_routes"] = [{
+        "id": "route_with_reverse_tags",
+        "motion_profile": "forward_only_safe",
+        "path": [
+            {"pose": [0.0, 0.0, 2.8], "direction": "forward"},
+            {"pose": [1.0, 0.0, 3.1], "direction": "reverse"},
+            {"pose": [1.0, 1.0, -1.5], "direction": "reverse"},
+        ],
+    }]
+    task_map["tasks"] = [{
+        "id": "daily_patrol",
+        "type": "taught_route",
+        "route": "route_with_reverse_tags",
+    }]
+
+    poses, warnings = module.executable_goal_poses_for_task(task_map, "daily_patrol")
+
+    assert warnings == [
+        "route=route_with_reverse_tags reverse_tags_normalized_for_forward_only"
+    ]
+    assert poses[0][2] == pytest.approx(0.0)
+    assert poses[1][2] == pytest.approx(math.pi / 2.0)
+    assert poses[2][2] == pytest.approx(math.pi / 2.0)
+
+
 def test_task_map_core_rejects_duplicate_motion_profile_ids():
     module = load_script_module("task_map_core.py")
     task_map = module.load_task_map(WORKSPACE_DIR / "config" / "task_map.example.yaml")
@@ -1860,14 +1893,15 @@ def test_nav2_planner_uses_forward_ackermann_turning_constraints():
 
     assert planner["plugin"] == "nav2_smac_planner/SmacPlannerHybrid"
     assert planner["motion_model_for_search"] == "DUBIN"
-    assert planner["minimum_turning_radius"] >= 1.6
+    assert planner["minimum_turning_radius"] == pytest.approx(0.95)
     assert planner["reverse_penalty"] >= 100.0
     assert planner["analytic_expansion_ratio"] >= 3.0
     assert planner["lookup_table_size"] >= 20.0
     assert planner["smooth_path"] is False
     assert controller["allow_reversing"] is False
-    assert controller["regulated_linear_scaling_min_radius"] >= 1.6
-    assert controller["desired_linear_vel"] <= 0.2
+    assert controller["regulated_linear_scaling_min_radius"] == pytest.approx(0.95)
+    assert controller["desired_linear_vel"] == pytest.approx(0.35)
+    assert controller["regulated_linear_scaling_min_speed"] == pytest.approx(0.18)
     assert "inflation_layer" in global_costmap["plugins"]
     assert global_costmap["inflation_layer"]["inflation_radius"] >= 0.65
     assert "inflation_layer" in local_costmap["plugins"]

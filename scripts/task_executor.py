@@ -15,7 +15,7 @@ from std_msgs.msg import String
 
 from task_map_core import (
     adapt_start_pose_for_ackermann,
-    goal_poses_for_task,
+    executable_goal_poses_for_task,
     item_by_id,
     load_task_map,
     motion_profiles_by_id,
@@ -36,6 +36,7 @@ class TaskExecutor(Node):
         self.remaining_poses = []
         self.current_pose = None
         self.pending_start_task_id = None
+        self.last_status = "IDLE"
 
         self.status_pub = self.create_publisher(String, "/task/status", 10)
         self.goal_pub = self.create_publisher(String, "/task/current_goal", 10)
@@ -47,6 +48,7 @@ class TaskExecutor(Node):
             NavigateThroughPoses,
             "navigate_through_poses",
         )
+        self.create_timer(1.0, self.republish_status)
         self.publish_status("IDLE")
 
     def reload_task_map(self):
@@ -58,6 +60,7 @@ class TaskExecutor(Node):
             return
         command = parts[0]
         args = dict(part.split("=", 1) for part in parts[1:] if "=" in part)
+        self.get_logger().info(f"task command received: {msg.data}")
         if command == "start_task":
             self.start_task(args.get("id", self.get_parameter("default_task_id").value))
         elif command in ("cancel_task", "manual_override"):
@@ -93,7 +96,7 @@ class TaskExecutor(Node):
             return
         try:
             self.reload_task_map()
-            poses = goal_poses_for_task(self.task_map, task_id)
+            poses, warnings = executable_goal_poses_for_task(self.task_map, task_id)
             poses = self.prepare_ackermann_goal_poses(task_id, poses)
             self.ensure_reverse_policy(task_id)
         except ValueError as exc:
@@ -103,7 +106,8 @@ class TaskExecutor(Node):
         self.active_task_id = task_id
         self.remaining_poses = list(poses)
         self.state = "RUNNING"
-        self.publish_status(f"RUNNING; task={task_id}; goals={len(poses)}")
+        warning_text = "" if not warnings else "; warning=" + ",".join(warnings)
+        self.publish_status(f"RUNNING; task={task_id}; goals={len(poses)}{warning_text}")
         self.send_nav_goal(poses)
 
     def has_active_or_pending_goal(self):
@@ -156,6 +160,7 @@ class TaskExecutor(Node):
             self.publish_status("BLOCKED; reason=nav2_action_unavailable")
             return
         self.nav_goal_pending = True
+        self.get_logger().info(f"sending Nav2 goal with {len(goal_msg.poses)} poses")
         future = self.nav_client.send_goal_async(goal_msg)
         future.add_done_callback(self.on_goal_response)
 
@@ -184,6 +189,7 @@ class TaskExecutor(Node):
             self.state = "BLOCKED"
             self.publish_status("BLOCKED; reason=nav2_goal_rejected")
             return
+        self.get_logger().info("Nav2 goal accepted")
         self.active_goal_handle = goal_handle
         goal_handle.get_result_async().add_done_callback(self.on_nav_result)
 
@@ -232,7 +238,10 @@ class TaskExecutor(Node):
             return
         try:
             self.reload_task_map()
-            poses = goal_poses_for_task(self.task_map, self.active_task_id)
+            poses, _warnings = executable_goal_poses_for_task(
+                self.task_map,
+                self.active_task_id,
+            )
             poses = self.prepare_ackermann_goal_poses(self.active_task_id, poses)
         except ValueError as exc:
             self.state = "BLOCKED"
@@ -284,7 +293,11 @@ class TaskExecutor(Node):
         self.publish_status(f"BLOCKED; reason=unsupported_command:{command}")
 
     def publish_status(self, text):
+        self.last_status = text
         self.status_pub.publish(String(data=text))
+
+    def republish_status(self):
+        self.status_pub.publish(String(data=self.last_status))
 
 
 def main():

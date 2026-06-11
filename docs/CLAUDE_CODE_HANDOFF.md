@@ -16,6 +16,60 @@
 3. 加载已保存地图后执行固定任务，并能在 Web 和 RViz 中观察车辆、任务路径、Nav2 规划路径。
 4. 后续迁移到真车时，GPS 信号好的区域用于校准和全局约束；无 GPS 区域依靠轮速、IMU、LiDAR 维持定位。
 
+## 当前节点状态
+
+当前仿真栈以 `scripts/start_full_stack.sh` 为准。最近一次运行中确认存在以下核心节点：
+
+- 仿真与车体：
+  - `/gazebo`
+  - `/robot_state_publisher`
+  - `/robot/ackermann_drive_controller`
+  - `/wheel_encoder_front_left`
+  - `/wheel_encoder_front_right`
+  - `/wheel_encoder_rear_left`
+  - `/wheel_encoder_rear_right`
+  - `/wheel_encoder_rear_average`
+- 传感器与桥接：
+  - `/lidar_self_filter`
+  - `/relay_lidar_points_raw`
+  - `/relay_lidar_points_filtered`
+  - `/relay_imu_data`
+  - `/relay_gps_fix`
+  - `/relay_wheel_speed`
+- FAST-LIO / Wheel-LIO / 全局定位：
+  - `/fast_lio2`
+  - `/lio_tf_adapter`
+  - `/lio_wheel_fusion`
+  - `/wheel_lio_fusion`
+  - `/global_localization_backend`
+  - `/localization_mode_manager`
+  - `/localization_mode_supervisor`
+- Nav2：
+  - `/map_server`
+  - `/planner_server`
+  - `/controller_server`
+  - `/smoother_server`
+  - `/behavior_server`
+  - `/bt_navigator`
+  - `/waypoint_follower`
+  - `/velocity_smoother`
+- 任务与 Web：
+  - `/route_recorder`
+  - `/task_executor`
+  - `/remote_control_node`
+
+当前速度链路已经确认：
+
+```text
+controller_server / behavior_server
+  -> /control/cmd_vel
+  -> velocity_smoother
+  -> /robot/cmd_vel
+  -> /robot/ackermann_drive_controller
+```
+
+`remote_control_node` 也会发布 `/robot/cmd_vel`，但只在手动摇杆、键盘或急停时发送。自动任务期间如果手动控制，会通过 `/task/command` 发布 `manual_override`，任务执行器应取消当前自动任务。
+
 ## 当前架构
 
 ### 仿真与传感器接口
@@ -57,17 +111,27 @@
 
 - Nav2 当前使用 Smac Hybrid A*，配置为 Dubins 前进优先模式：
   - `motion_model_for_search: "DUBIN"`
-  - `minimum_turning_radius: 1.6`
-  - `min_turning_radius: 1.6`
+  - `minimum_turning_radius: 0.95`
+  - `min_turning_radius: 0.95`
   - `reverse_penalty: 100.0`
   - `smooth_path: false`
-  - controller 低速、较大 lookahead，避免贴墙小半径急转。
+  - controller 目标速度 `0.35 m/s`、较大 lookahead，避免贴墙急转。
+- 2026-06-11 已用 `scripts/measure_turning_radius.py` 在仿真中实测左右转：
+  - 左转拟合半径：`0.862 m`
+  - 右转拟合半径：`0.862 m`
+  - Nav2 使用 `0.95 m`，即实测值加约 10% 安全余量。
+- 示教路线优先策略落点：
+  - `config/navigate_through_poses_w_replanning_and_recovery_no_remove.xml`
+    使用 `IsPathValid`，路径有效时不周期性重规划，路径失效才重规划。
+  - `scripts/task_executor.py`
+    负责将示教路线转为 Nav2 goals，并持续发布 `/task/active_path` 作为任务参考路径；当 forward-only 任务遇到 `direction: reverse` 标签时，会按路径切线重算 yaw，把路线转换成前进可执行版本。
 - 任务执行器：
   - 订阅 `/task/command`
   - 发布 `/task/status`
   - 发布 `/task/current_goal`
   - 发布 `/task/active_path`
   - 支持 `start_task`、`pause_task`、`resume_task`、`cancel_task`、`manual_override`、`return_home`
+  - `/task/status` 现在每秒重复发布最后状态，避免 Web 或命令行错过瞬时 `BLOCKED` / `RUNNING` 状态。
 - 若启动任务时还没有 `/localization/global_odom`，任务执行器会进入：
 
   ```text
@@ -75,6 +139,32 @@
   ```
 
   收到第一帧定位后自动继续启动任务。
+
+### 2026-06-11 最新运行结论
+
+用户反馈“直接执行 `daily_patrol.route min_route_002` 后车没有动”。根因已经确认：
+
+```text
+BLOCKED; reason=route min_route_002 violates motion profile
+```
+
+原因是 `maps/task_map.yaml` 中 `min_route_002` 含有多段 `direction: reverse`，但运动策略 `forward_only_safe.allow_reverse=false`。以前 `task_executor` 只发布一次状态，Web 很容易错过这个 `BLOCKED`，因此看起来像“没有任何反应”。
+
+当前修复：
+
+- `task_executor.py` 使用 `executable_goal_poses_for_task()` 获取运行时可执行路径。
+- `task_map_core.py` 新增 `forward_executable_route_poses()`：
+  - 保留路线点的 x / y。
+  - 忽略 `direction: reverse` 标签。
+  - 按相邻路径切线重算 yaw。
+  - 将旧路线转换为 forward-only 可执行路线。
+- 启动 `min_route_002` 时会进入 `RUNNING`，并在状态中带提示：
+
+  ```text
+  warning=route=min_route_002 reverse_tags_normalized_for_forward_only
+  ```
+
+注意：这是为了让当前最小测试能继续推进，不代表 `min_route_002` 是最终验收路线。最终仍建议重录一条全程前进、离墙更远、没有倒车标签的基准路线。
 
 ### Web 遥控器联动
 
@@ -203,7 +293,7 @@ cd /home/xavier/Workspace/ClaudeSpace/remote
 注意：
 
 - 当前默认运动策略是前进优先。正式任务建议录制“尽量全程前进”的路线。
-- 现有 `min_route_002` 中间包含 `direction: reverse`，它不适合作为当前 forward-only 策略下的基准任务。
+- 现有 `min_route_002` 中间包含 `direction: reverse`；运行时会转换成前进可执行路线，但它不适合作为最终 forward-only 验收基准，后续仍建议重录。
 
 ### 6. 编辑并执行任务
 
@@ -270,18 +360,23 @@ ros2 param get /controller_server FollowPath.lookahead_dist
 - `start_full_stack.sh` 增加 `BUILD=auto`，避免源码更新但 `install/` 仍是旧版本。
 - `task_executor.py`：
   - 增加 `/task/active_path`。
+  - `/task/status` 每秒重发最后状态，避免 Web 错过阻塞原因。
   - 支持暂停、继续、取消、手动介入取消、回起点。
   - 无定位时进入等待状态，收到定位后自动开始任务。
   - 回起点时若已经接近 home，发布 `HOME_REACHED`，不再误以为车辆没响应。
   - 对示教路线做起点适配和稀疏化，减少密集点导致的阿克曼不可达路径。
+  - 对包含 `direction: reverse` 的 forward-only 示教路线做运行时 yaw 归一化，避免 `daily_patrol -> min_route_002` 直接 `BLOCKED`。
 - `task_map_core.py`：
   - 增加起点适配、距离计算等任务路线辅助逻辑。
+  - 增加 forward-only 路线归一化辅助函数。
 - `route_recorder.py`：
   - 保存路线时合并已有 `task_map.yaml`，避免覆盖 Web 端创建的点位、任务和上传地图记录。
 - `navigation.yaml`：
   - Smac Hybrid 切到 Dubins 前进优先。
-  - 增大转弯半径和膨胀半径。
-  - 降低速度并增大 controller lookahead。
+  - 转弯半径按仿真实测 `0.862 m` 加安全余量设置为 `0.95 m`。
+  - 目标线速度提高到 `0.35 m/s`。
+  - 放宽普通目标点朝向容差，减少“看起来到点后又绕一圈”的问题。
+  - 保持较大膨胀半径和 controller lookahead。
 - `remote`：
   - 地图上传。
   - Teach / Task 页面重构。
@@ -296,7 +391,7 @@ ros2 param get /controller_server FollowPath.lookahead_dist
 原因可能有三类：
 
 - 当前地图局部空间太窄，Nav2 只看栅格通行性，不知道真实车辆控制器是否能按该路径跟踪。
-- 任务路线本身包含倒车段或急转段，而当前配置按 forward-only 执行。
+- 任务路线本身包含倒车段或急转段；当前运行时会做 forward-only yaw 归一化，但路线质量仍可能影响跟踪效果。
 - 运行时加载的参数可能仍是旧 `install/`，需要确认 `BUILD=auto` 是否实际构建过，或手动 `BUILD=true ./scripts/start_full_stack.sh`。
 
 下一步建议：
@@ -305,7 +400,7 @@ ros2 param get /controller_server FollowPath.lookahead_dist
 - 实测车辆最小转弯半径后同步修改：
   - `config/navigation.yaml`
   - `maps/task_map.yaml` 中 `motion_profiles.min_turning_radius`
-- 增加任务校验：forward-only 模式下拒绝包含 reverse 段的路线。
+- 增加任务校验：forward-only 模式下对包含 reverse 段的路线给出明显提示，并推荐重录前进路线。
 
 ### 2. “回起点”看见路径但车辆不动
 
@@ -360,11 +455,11 @@ cd ros2_robot_sim
 python3 -m pytest src/robot_description/test/test_wheel_encoder_integration.py -q
 ```
 
-结果：`119 passed`
+结果：`120 passed`
 
 ```bash
 cd ros2_robot_sim
-python3 -m py_compile scripts/task_executor.py scripts/task_map_core.py scripts/route_recorder.py
+python3 -m py_compile scripts/task_executor.py scripts/task_map_core.py scripts/route_recorder.py scripts/measure_turning_radius.py
 ```
 
 结果：通过
@@ -379,29 +474,51 @@ colcon build --packages-select robot_description
 构建后已确认 `install/robot_description` 中包含最新：
 
 - `task_executor.py`
+- `task_map_core.py`
 - `navigation.yaml`
+
+关键安装检查：
+
+- `install/robot_description/share/robot_description/config/navigation.yaml`
+  - `desired_linear_vel: 0.35`
+  - `regulated_linear_scaling_min_speed: 0.18`
+  - `minimum_turning_radius: 0.95`
+- `install/robot_description/lib/robot_description/task_executor.py`
+  - `executable_goal_poses_for_task`
+  - `republish_status`
+  - `task command received`
+- `install/robot_description/lib/robot_description/task_map_core.py`
+  - `reverse_tags_normalized_for_forward_only`
 
 ## 推荐下一步
 
 ### 短期
 
 1. 启动完整栈并确认运行时参数是最新值。
-2. 在 Web 中上传和 Nav2 一致的地图。
-3. 重新设置 `home`。
-4. 录制一条全程前进、离墙更远的路线。
-5. 用这条路线新建任务并执行。
-6. 若仍撞墙，抓取：
+2. 直接执行 `daily_patrol` 验证 `min_route_002` 是否进入 `RUNNING`，并确认 Web 能持续显示 `/task/status`。
+3. 在 Web 中上传和 Nav2 一致的地图。
+4. 重新设置 `home`。
+5. 录制一条全程前进、离墙更远的路线，作为替代 `min_route_002` 的正式基准路线。
+6. 用这条新路线创建任务并执行。
+7. 若仍撞墙或明显走大弯，抓取：
    - `/task/status`
    - `/task/active_path`
    - Nav2 global plan
    - `/control/cmd_vel`
    - `/robot/cmd_vel`
    - `log/full_stack/navigation.log`
+   - 当前运行参数：
+
+     ```bash
+     ros2 param get /controller_server FollowPath.desired_linear_vel
+     ros2 param get /controller_server FollowPath.regulated_linear_scaling_min_speed
+     ros2 param get /planner_server GridBased.minimum_turning_radius
+     ```
 
 ### 中期
 
 1. 增加 Web 任务校验：
-   - forward-only 不允许 reverse 路线。
+   - forward-only 路线包含 reverse 标签时提示“已运行时归一化，但建议重录”。
    - 路线点过密或急转时提示重录。
    - 起点距离当前车辆太近或朝向差太大时提示。
 2. 增加地图编辑：
@@ -465,4 +582,7 @@ colcon build --packages-select robot_description
 - 完成 Web Teach / Task 交互重构和任务执行器增强。
 - 完成 Nav2 阿克曼前进优先参数初步收敛。
 - 完成一键启动脚本和自动构建检查。
-- 当前仍需用户手动录制一条新的 forward-only 基准路线验证导航效果。
+- 实测仿真车左右最小转弯半径约 `0.862 m`，Nav2 使用 `0.95 m`。
+- 将 Nav2 目标速度提高到 `0.35 m/s`，将弯道最低调节速度提高到 `0.18 m/s`。
+- 修复 `daily_patrol -> min_route_002` 因 reverse 标签被 forward-only 策略阻塞的问题：运行时会将 reverse 标签路线转换成前进可执行 yaw。
+- 当前仍需用户手动录制一条新的 forward-only 基准路线验证最终导航效果。

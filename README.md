@@ -255,9 +255,23 @@ map -> odom -> base_footprint -> base_link
 
 - Smac Hybrid A*。
 - Dubins 前进优先搜索。
-- 较大的最小转弯半径。
-- 较低跟踪速度。
+- 最小转弯半径按仿真实测值设置。
+- 直线目标速度为 `0.35 m/s`。
 - 较大的 inflation radius。
+
+2026-06-11 仿真实测：
+
+```bash
+python3 scripts/measure_turning_radius.py --cmd-topic /robot/cmd_vel --direction left
+python3 scripts/measure_turning_radius.py --cmd-topic /robot/cmd_vel --direction right
+```
+
+测得左右转拟合半径均约 `0.862 m`。Nav2 规划和控制使用 `0.95 m`，即实测值加约 10% 安全余量。
+
+示教路线优先策略写在两个位置：
+
+- `config/navigate_through_poses_w_replanning_and_recovery_no_remove.xml`：通过 `IsPathValid` 控制“路径仍有效时不周期性换路，路径失效才重规划”。
+- `scripts/task_executor.py`：负责把示教路线转为 Nav2 goals，并发布 `/task/active_path` 作为任务参考路径；当 forward-only 任务遇到 `direction: reverse` 标签时，会按路径切线重算 yaw，把路线转换成前进可执行版本。
 
 如果实际车辆仍撞墙：
 
@@ -266,6 +280,7 @@ map -> odom -> base_footprint -> base_link
    ```bash
    ros2 param get /planner_server GridBased.minimum_turning_radius
    ros2 param get /controller_server FollowPath.lookahead_dist
+   ros2 param get /controller_server FollowPath.desired_linear_vel
    ```
 
 2. 重新录制离墙更远、全程前进的路线。
@@ -314,7 +329,7 @@ colcon build --packages-select robot_description
 
 ## 已知限制
 
-- 当前任务文件中已有的 `min_route_002` 包含倒车段，不适合作为 forward-only 策略的最终验收路线。
+- 当前任务文件中已有的 `min_route_002` 包含倒车段；运行时会转换成前进可执行路线，但它仍不适合作为最终验收路线，建议后续重新录制一条全程前进、离墙更远的基准路线。
 - Web 地图和 Nav2 地图需要使用同一组 `.yaml` / `.pgm`，否则车辆位置和路线会看起来偏移。
 - Nav2 能规划不代表真实阿克曼车一定能跟踪，需要结合车辆最小转弯半径、路线离墙距离和控制器参数验证。
 - 当前还没有完整真车网络拓扑实现，后续需要接入 4G、远程服务器、平板客户端和车端配置管理。

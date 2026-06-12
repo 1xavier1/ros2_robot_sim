@@ -206,6 +206,7 @@ class OdomProjectedMap(Node):
         self.first_pair = None
         self.latest_pair = None
         self.frames = 0
+        self.pose_count = 0
         self.skipped_clouds_no_pose = 0
         self.filter_stats = defaultdict(int)
         self.create_subscription(PointCloud2, args.cloud_topic, self.on_cloud, 10)
@@ -220,6 +221,7 @@ class OdomProjectedMap(Node):
             )
 
     def on_odom(self, msg):
+        self.pose_count += 1
         self.latest_odom = msg
         self.pose_buffer.append((stamp_to_sec(msg.header.stamp), self.pose_tuple(msg)))
         self.record_pair()
@@ -303,7 +305,7 @@ class OdomProjectedMap(Node):
             int(math.floor(y / self.args.resolution)),
         )
 
-    def export(self):
+    def build_grid(self):
         occupied_cells, free_cells = classify_cells(
             self.occupied_counts,
             self.free_counts,
@@ -313,10 +315,7 @@ class OdomProjectedMap(Node):
         )
         all_cells = occupied_cells | free_cells
         if not occupied_cells or not all_cells:
-            raise RuntimeError("no odom-projected points accumulated")
-        output_base = Path(self.args.output)
-        output_base.parent.mkdir(parents=True, exist_ok=True)
-
+            return None
         padding_cells = int(math.ceil(self.args.padding / self.args.resolution))
         min_cell_x = min(cell[0] for cell in all_cells) - padding_cells
         max_cell_x = max(cell[0] for cell in all_cells) + padding_cells
@@ -330,17 +329,39 @@ class OdomProjectedMap(Node):
         local_free = {
             (cell[0] - min_cell_x, cell[1] - min_cell_y) for cell in free_cells
         }
-        pgm_grid = make_occupancy_grid(local_occupied, local_free, width, height)
+        grid = make_occupancy_grid(local_occupied, local_free, width, height)
         origin_x = min_cell_x * self.args.resolution
         origin_y = min_cell_y * self.args.resolution
-        self.write_pgm(output_base.with_suffix(".pgm"), pgm_grid)
+        return grid, origin_x, origin_y, len(occupied_cells), len(free_cells)
+
+    def export(self):
+        built = self.build_grid()
+        if built is None:
+            raise RuntimeError("no odom-projected points accumulated")
+        grid, origin_x, origin_y, occupied_count, free_count = built
+        output_base = Path(self.args.output)
+        output_base.parent.mkdir(parents=True, exist_ok=True)
+        self.write_pgm(output_base.with_suffix(".pgm"), grid)
         self.write_yaml(output_base.with_suffix(".yaml"), output_base.with_suffix(".pgm").name, origin_x, origin_y)
-        self.write_diagnostics(output_base.with_suffix(".json"), width, height, len(occupied_cells))
+        self.write_diagnostics(output_base.with_suffix(".json"), grid.shape[1], grid.shape[0], occupied_count)
         self.get_logger().info(
-            f"map: {width}x{height}, occupied: {len(occupied_cells)}, free: {len(free_cells)}, "
+            f"map: {grid.shape[1]}x{grid.shape[0]}, occupied: {occupied_count}, free: {free_count}, "
             f"frames: {self.frames}, "
             f"diagnostics: {output_base.with_suffix('.json')}"
         )
+
+    def write_snapshot(self):
+        built = self.build_grid()
+        if built is None:
+            return False
+        grid = built[0]
+        output_base = Path(self.args.output)
+        output_base.parent.mkdir(parents=True, exist_ok=True)
+        snapshot_path = output_base.parent / f"{output_base.name}_snapshot.pgm"
+        tmp_path = output_base.parent / f"{output_base.name}_snapshot.pgm.tmp"
+        self.write_pgm(tmp_path, grid)
+        tmp_path.replace(snapshot_path)
+        return True
 
     def write_pgm(self, path, grid):
         with path.open("wb") as stream:
@@ -428,7 +449,13 @@ def parse_args():
     parser.add_argument("--min-z", type=float, default=0.05)
     parser.add_argument("--max-z", type=float, default=1.6)
     parser.add_argument("--padding", type=float, default=1.0)
+    parser.add_argument("--snapshot-interval", type=float, default=0.0)
+    parser.add_argument("--progress-jsonl", action="store_true")
     return parser.parse_args()
+
+
+def emit_event(data):
+    print(json.dumps(data), flush=True)
 
 
 def main():
@@ -437,24 +464,51 @@ def main():
         args.pose_topic = args.odom_topic
     rclpy.init()
     node = OdomProjectedMap(args)
+    stop_requested = []
 
-    def shutdown(_sig, _frame):
-        node.export()
-        node.destroy_node()
-        rclpy.shutdown()
-        sys.exit(0)
+    def request_stop(_sig, _frame):
+        stop_requested.append(True)
 
-    signal.signal(signal.SIGINT, shutdown)
-    signal.signal(signal.SIGTERM, shutdown)
+    signal.signal(signal.SIGINT, request_stop)
+    signal.signal(signal.SIGTERM, request_stop)
 
+    start = node.get_clock().now()
+    deadline = start + rclpy.duration.Duration(seconds=args.duration_sec)
+    next_progress = 0.0
+    next_snapshot = args.snapshot_interval if args.snapshot_interval > 0 else None
+    snapshot_version = 0
+    exit_code = 0
     try:
-        deadline = node.get_clock().now() + rclpy.duration.Duration(seconds=args.duration_sec)
-        while rclpy.ok() and node.get_clock().now() < deadline:
+        while rclpy.ok() and not stop_requested and node.get_clock().now() < deadline:
             rclpy.spin_once(node, timeout_sec=0.1)
-        node.export()
+            elapsed = (node.get_clock().now() - start).nanoseconds / 1e9
+            if next_snapshot is not None and elapsed >= next_snapshot:
+                next_snapshot = elapsed + args.snapshot_interval
+                if node.write_snapshot():
+                    snapshot_version += 1
+            if args.progress_jsonl and elapsed >= next_progress:
+                next_progress = elapsed + 1.0
+                emit_event({
+                    "event": "progress",
+                    "elapsed": round(elapsed, 1),
+                    "poses": node.pose_count,
+                    "clouds": node.frames,
+                    "snapshot_version": snapshot_version,
+                })
+        try:
+            node.export()
+        except RuntimeError as exc:
+            if args.progress_jsonl:
+                emit_event({"event": "error", "message": str(exc)})
+            print(f"export failed: {exc}", file=sys.stderr)
+            exit_code = 1
+        else:
+            if args.progress_jsonl:
+                emit_event({"event": "exported"})
     finally:
         node.destroy_node()
         rclpy.shutdown()
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":

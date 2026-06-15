@@ -1,54 +1,83 @@
-lidar:
-  # parent_frame: frame that LiDAR extrinsics are relative to.
-  parent_frame: base_link
+# ============================================================
+# 传感器标定唯一入口 (实车标定只改这一个文件)
+# xacro 通过 xacro.load_yaml 读取本文件生成 URDF; 运行期节点也读这里。
+# 约定: xyz 单位 m (X forward positive / Y left positive / Z up positive);
+# rpy 单位 rad (Right-hand rule, roll绕X pitch绕Y yaw绕Z); 角度区间 *_min/*_max 单位 rad。
+# ============================================================
 
-  # frame: LiDAR point cloud frame_id.
+lidar:                          # 水平 360° 3D 激光雷达 (±15° 竖直, 朝上, 无桅杆)
+  parent: base_link
   frame: laser_link
-
-  # xyz: LiDAR origin relative to parent_frame, unit m.
-  # X forward positive, Y left positive, Z upward positive.
-  xyz: [0.0, 0.0, 0.25]
-
-  # rpy: LiDAR roll, pitch, yaw relative to parent_frame, unit rad.
-  # Right-hand rule: roll about X, pitch about Y, yaw about Z.
+  xyz: [0.0, 0.0, 0.25]         # 低位居中, 无桅杆
   rpy: [0.0, 0.0, 0.0]
-
-  # min_range / max_range: accepted LiDAR point distance, unit m.
-  min_range: 0.1
-  max_range: 100.0
-
-  # horizontal_fov / vertical_fov: expected useful field of view, unit rad.
-  # Used by simulation sanity checks and later real LiDAR validation.
-  horizontal_fov: 6.28318
-  vertical_fov: 0.5236
-
-  # scan_lines: LiDAR vertical channel count used when simulated PointCloud2
-  # lacks a native ring field. Unit count.
-  scan_lines: 32
-
-  # scan_rate: LiDAR scan frequency used when simulated PointCloud2 lacks
-  # per-point timestamps. Unit Hz.
-  scan_rate: 10
+  h_samples: 360
+  h_min: -3.14159               # 水平 360 deg
+  h_max:  3.14159
+  v_samples: 32
+  v_min: -0.2618                # 竖直 -15 deg (对称, 水平朝上)
+  v_max:  0.2618                # +15 deg
+  range_min: 0.05
+  range_max: 30.0
+  update_rate: 10
+  topic: velodyne_points
 
 imu:
-  # parent_frame: frame that IMU extrinsics are relative to.
-  parent_frame: base_link
-
-  # frame: IMU message frame_id.
+  parent: base_link
   frame: imu_link
-
-  # xyz: IMU origin relative to parent_frame, unit m.
   xyz: [0.0, 0.0, 0.08]
-
-  # rpy: IMU roll, pitch, yaw relative to parent_frame, unit rad.
   rpy: [0.0, 0.0, 0.0]
 
 gps:
-  # parent_frame: frame that GPS antenna position is relative to.
-  parent_frame: base_link
-
-  # frame: GPS fix frame_id.
+  parent: base_link
   frame: gps_link
-
-  # xyz: GPS antenna origin relative to parent_frame, unit m.
   xyz: [0.0, 0.0, 0.3]
+  rpy: [0.0, 0.0, 0.0]
+
+safety:                         # 毫米波近场急停/减速距离, 单位 m
+  stop_distance: 0.6
+  slowdown_distance: 1.2
+
+mmwave_front:                   # 前向门控毫米波 (转场保底, 推料关闭)
+  parent: base_link
+  frame: mmwave_front_link
+  xyz: [0.275, 0.0, 0.35]
+  rpy: [0.0, 0.0, 0.0]          # 朝前
+  h_fov: 2.0944                 # 水平 120 deg (+-60)
+  v_fov: 0.3491                 # 竖直 20 deg (+-10)
+  h_samples: 60
+  range_min: 0.3
+  range_max: 10.0
+  update_rate: 15
+  topic: mmwave/front/points
+  role: front_guard
+  gated_in_push: true           # 推料模式禁用 (前向标记屏蔽)
+
+mmwave_rear_left:               # 左后角毫米波 (倒车近场)
+  parent: base_link
+  frame: mmwave_rear_left_link
+  xyz: [-0.275, 0.19, 0.35]
+  rpy: [0.0, 0.0, 2.5307]       # yaw 145 deg
+  h_fov: 2.0944
+  v_fov: 0.3491
+  h_samples: 60
+  range_min: 0.3
+  range_max: 10.0
+  update_rate: 15
+  topic: mmwave/rear_left/points
+  role: rear_guard
+  gated_in_push: false
+
+mmwave_rear_right:              # 右后角毫米波 (倒车近场)
+  parent: base_link
+  frame: mmwave_rear_right_link
+  xyz: [-0.275, -0.19, 0.35]
+  rpy: [0.0, 0.0, -2.5307]      # yaw -145 deg (=215)
+  h_fov: 2.0944
+  v_fov: 0.3491
+  h_samples: 60
+  range_min: 0.3
+  range_max: 10.0
+  update_rate: 15
+  topic: mmwave/rear_right/points
+  role: rear_guard
+  gated_in_push: false

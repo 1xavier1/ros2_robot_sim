@@ -11,7 +11,7 @@ from nav_msgs.msg import Odometry
 from nav_msgs.msg import Path
 from rclpy.action import ActionClient
 from rclpy.node import Node
-from std_msgs.msg import String
+from std_msgs.msg import Bool, String
 
 from task_map_core import (
     adapt_start_pose_for_ackermann,
@@ -37,10 +37,12 @@ class TaskExecutor(Node):
         self.current_pose = None
         self.pending_start_task_id = None
         self.last_status = "IDLE"
+        self.push_active = False
 
         self.status_pub = self.create_publisher(String, "/task/status", 10)
         self.goal_pub = self.create_publisher(String, "/task/current_goal", 10)
         self.active_path_pub = self.create_publisher(Path, "/task/active_path", 10)
+        self.push_pub = self.create_publisher(Bool, "/push/active", 10)
         self.create_subscription(String, "/task/command", self.on_command, 10)
         self.create_subscription(Odometry, "/localization/global_odom", self.on_pose, 10)
         self.nav_client = ActionClient(
@@ -50,6 +52,7 @@ class TaskExecutor(Node):
         )
         self.create_timer(1.0, self.republish_status)
         self.publish_status("IDLE")
+        self.set_push(False)
 
     def reload_task_map(self):
         self.task_map = load_task_map(self.get_parameter("task_map").value)
@@ -104,6 +107,7 @@ class TaskExecutor(Node):
             self.publish_status(f"BLOCKED; reason={exc}")
             return
         self.active_task_id = task_id
+        self.set_push(self.task_is_push(task_id))
         self.remaining_poses = list(poses)
         self.state = "RUNNING"
         warning_text = "" if not warnings else "; warning=" + ",".join(warnings)
@@ -112,6 +116,17 @@ class TaskExecutor(Node):
 
     def has_active_or_pending_goal(self):
         return self.nav_goal_pending or self.active_goal_handle is not None
+
+    def set_push(self, active):
+        self.push_active = bool(active)
+        self.push_pub.publish(Bool(data=self.push_active))
+
+    def task_is_push(self, task_id):
+        try:
+            task = item_by_id(self.task_map["tasks"], task_id, "task")
+        except ValueError:
+            return False
+        return bool(task.get("push", False))
 
     def ensure_reverse_policy(self, task_id):
         task = next(item for item in self.task_map["tasks"] if item["id"] == task_id)
@@ -132,7 +147,7 @@ class TaskExecutor(Node):
         poses = adapt_start_pose_for_ackermann(poses, self.current_pose)
         if self.task_type(task_id) != "taught_route":
             return poses
-        return self.thin_taught_route_goals(poses, min_spacing=1.2)
+        return self.thin_taught_route_goals(poses, min_spacing=2.5)
 
     def thin_taught_route_goals(self, poses, min_spacing):
         if len(poses) <= 2:
@@ -199,6 +214,7 @@ class TaskExecutor(Node):
         result = future.result()
         self.active_goal_handle = None
         self.nav_goal_pending = False
+        self.set_push(False)
         if result.status == GoalStatus.STATUS_SUCCEEDED:
             self.state = "COMPLETED"
             self.publish_status("COMPLETED")
@@ -215,6 +231,7 @@ class TaskExecutor(Node):
             self.active_task_id = None
             self.remaining_poses = []
         self.state = state
+        self.set_push(False)
         self.publish_active_path([])
         self.publish_status(state)
 
@@ -228,6 +245,7 @@ class TaskExecutor(Node):
             self.active_goal_handle = None
         self.nav_goal_pending = False
         self.state = "PAUSED"
+        self.set_push(False)
         self.publish_active_path([])
         self.publish_status(f"PAUSED; task={self.active_task_id or ''}")
 
@@ -247,6 +265,7 @@ class TaskExecutor(Node):
             self.state = "BLOCKED"
             self.publish_status(f"BLOCKED; reason={exc}")
             return
+        self.set_push(self.task_is_push(self.active_task_id))
         self.state = "RUNNING"
         self.publish_status(f"RUNNING; task={self.active_task_id}; goals={len(poses)}")
         self.send_nav_goal(poses)
@@ -280,6 +299,7 @@ class TaskExecutor(Node):
                 )
                 return
         self.active_task_id = "return_home"
+        self.set_push(False)
         self.state = "RUNNING"
         self.publish_status("RUNNING; task=return_home; goals=1")
         self.send_nav_goal([tuple(pose)])

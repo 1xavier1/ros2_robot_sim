@@ -1,17 +1,28 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="ackermann_robot">
 
-  <!-- ==================== Constants ==================== -->
+  <!-- ============ Geometry (single entry: config/vehicle_geometry.yaml) ============ -->
   <xacro:property name="PI" value="3.1415926535897931"/>
-  <xacro:property name="wheelbase" value="0.45"/>
-  <xacro:property name="track_width" value="0.35"/>
-  <xacro:property name="wheel_radius" value="0.07"/>
-  <xacro:property name="wheel_diameter" value="0.14"/>
+  <xacro:property name="veh" value="${xacro.load_yaml('$(find robot_description)/config/vehicle_geometry.yaml')['vehicle_geometry']}"/>
+  <xacro:property name="wheelbase" value="${veh['wheelbase']}"/>
+  <xacro:property name="track_width" value="${veh['track_width']}"/>
+  <xacro:property name="wheel_radius" value="${veh['wheel_radius']}"/>
+  <xacro:property name="wheel_diameter" value="${2.0 * veh['wheel_radius']}"/>
   <xacro:property name="wheel_width" value="0.04"/>
-  <xacro:property name="chassis_length" value="0.55"/>
-  <xacro:property name="chassis_width" value="0.38"/>
-  <xacro:property name="chassis_height" value="0.12"/>
+  <xacro:property name="chassis_length" value="${veh['body']['length']}"/>
+  <xacro:property name="chassis_width" value="${veh['body']['width']}"/>
+  <xacro:property name="chassis_height" value="${veh['body']['height']}"/>
   <xacro:property name="lidar_height" value="0.25"/>
+
+  <xacro:property name="body_lift" value="${chassis_height / 2.0 - wheel_radius + 0.02}"/>
+  <xacro:property name="body_top" value="${body_lift + chassis_height / 2.0}"/>
+
+  <xacro:include filename="sensors.xacro"/>
+  <xacro:property name="lidar_cfg" value="${sensor_cfg['lidar']}"/>
+  <xacro:property name="lidar_x" value="${lidar_cfg['xyz'][0]}"/>
+  <xacro:property name="lidar_z" value="${lidar_cfg['xyz'][2]}"/>
+  <xacro:property name="mast_z" value="${(body_top + lidar_z) / 2.0}"/>
+  <xacro:property name="mast_len" value="${lidar_z - body_top}"/>
 
   <!-- ==================== Base Link ==================== -->
   <link name="base_footprint"/>
@@ -24,10 +35,12 @@
 
   <link name="base_link">
     <inertial>
+      <origin xyz="0 0 ${body_lift}" rpy="0 0 0"/>
       <mass value="15.0"/>
-      <inertia ixx="0.5" ixy="0" ixz="0" iyy="0.5" iyz="0" izz="0.5"/>
+      <inertia ixx="0.6" ixy="0" ixz="0" iyy="0.8" iyz="0" izz="0.6"/>
     </inertial>
     <visual name="base_visual">
+      <origin xyz="0 0 ${body_lift}" rpy="0 0 0"/>
       <geometry>
         <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
       </geometry>
@@ -36,6 +49,7 @@
       </material>
     </visual>
     <collision name="base_collision">
+      <origin xyz="0 0 ${body_lift}" rpy="0 0 0"/>
       <geometry>
         <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
       </geometry>
@@ -125,7 +139,7 @@
   <joint name="front_left_joint" type="continuous">
     <parent link="left_steering_link"/>
     <child link="front_left_wheel"/>
-    <origin xyz="0 0 ${-wheel_radius + 0.02}" rpy="0 0 0"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
     <dynamics damping="0.01" friction="0.01"/>
   </joint>
@@ -163,7 +177,7 @@
   <joint name="front_right_joint" type="continuous">
     <parent link="right_steering_link"/>
     <child link="front_right_wheel"/>
-    <origin xyz="0 0 ${-wheel_radius + 0.02}" rpy="0 0 0"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
     <dynamics damping="0.01" friction="0.01"/>
   </joint>
@@ -201,7 +215,7 @@
   <joint name="rear_left_joint" type="continuous">
     <parent link="rear_left_fixed_link"/>
     <child link="rear_left_wheel"/>
-    <origin xyz="0 0 ${-wheel_radius + 0.02}" rpy="0 0 0"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
     <dynamics damping="0.01" friction="0.01"/>
   </joint>
@@ -239,7 +253,7 @@
   <joint name="rear_right_joint" type="continuous">
     <parent link="rear_right_fixed_link"/>
     <child link="rear_right_wheel"/>
-    <origin xyz="0 0 ${-wheel_radius + 0.02}" rpy="0 0 0"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
     <dynamics damping="0.01" friction="0.01"/>
   </joint>
@@ -282,9 +296,10 @@
   <link name="imu_link"/>
 
   <joint name="laser_joint" type="fixed">
-    <parent link="base_link"/>
+    <parent link="${lidar_cfg['parent']}"/>
     <child link="laser_link"/>
-    <origin xyz="0 0 ${lidar_height}" rpy="0 0 0"/>
+    <origin xyz="${lidar_cfg['xyz'][0]} ${lidar_cfg['xyz'][1]} ${lidar_cfg['xyz'][2]}"
+            rpy="${lidar_cfg['rpy'][0]} ${lidar_cfg['rpy'][1]} ${lidar_cfg['rpy'][2]}"/>
   </joint>
   <link name="laser_link">
     <inertial>
@@ -333,25 +348,25 @@
   <gazebo reference="laser_link">
     <sensor type="ray" name="velodyne_sensor">
       <always_on>1</always_on>
-      <update_rate>10</update_rate>
+      <update_rate>${lidar_cfg['update_rate']}</update_rate>
       <ray>
         <scan>
           <horizontal>
-            <samples>720</samples>
+            <samples>${lidar_cfg['h_samples']}</samples>
             <resolution>1</resolution>
-            <min_angle>-3.14159</min_angle>
-            <max_angle>3.14159</max_angle>
+            <min_angle>${lidar_cfg['h_min']}</min_angle>
+            <max_angle>${lidar_cfg['h_max']}</max_angle>
           </horizontal>
           <vertical>
-            <samples>32</samples>
+            <samples>${lidar_cfg['v_samples']}</samples>
             <resolution>1</resolution>
-            <min_angle>-0.2618</min_angle>
-            <max_angle>0.2618</max_angle>
+            <min_angle>${lidar_cfg['v_min']}</min_angle>
+            <max_angle>${lidar_cfg['v_max']}</max_angle>
           </vertical>
         </scan>
         <range>
-          <min>0.1</min>
-          <max>100.0</max>
+          <min>${lidar_cfg['range_min']}</min>
+          <max>${lidar_cfg['range_max']}</max>
           <resolution>0.01</resolution>
         </range>
       </ray>
@@ -379,6 +394,11 @@
       </plugin>
     </sensor>
   </gazebo>
+
+  <!-- ==================== mmWave radars (from config/sensor_mount.yaml) ==================== -->
+  <xacro:mmwave_unit name="mmwave_front" cfg="${sensor_cfg['mmwave_front']}"/>
+  <xacro:mmwave_unit name="mmwave_rear_left" cfg="${sensor_cfg['mmwave_rear_left']}"/>
+  <xacro:mmwave_unit name="mmwave_rear_right" cfg="${sensor_cfg['mmwave_rear_right']}"/>
 
   <!-- ==================== Ackermann Drive Controller ==================== -->
   <gazebo>

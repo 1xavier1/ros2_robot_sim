@@ -154,9 +154,9 @@ def adapt_start_pose_for_ackermann(
     )
     if xy_distance(adapted[nearest_index], current_pose) <= nearest_distance:
         adapted = adapted[nearest_index:]
-    if len(adapted) > 1 and xy_distance(adapted[0], current_pose) <= skip_distance:
+    while len(adapted) > 1 and xy_distance(adapted[0], current_pose) <= skip_distance:
         adapted = adapted[1:]
-    elif adapted:
+    if adapted:
         adapted[0] = (adapted[0][0], adapted[0][1], current_pose[2])
     return adapted
 
@@ -282,8 +282,6 @@ def executable_goal_poses_for_task(task_map, task_id):
 
     route = item_by_id(task_map["recorded_routes"], task["route"], "recorded_route")
     validate_route_path(route, task_id)
-    if route_allows_execution(task_map, route):
-        return [tuple(point["pose"]) for point in route["path"]], []
 
     profiles = motion_profiles_by_id(task_map)
     profile = profiles.get(route.get("motion_profile"))
@@ -292,6 +290,7 @@ def executable_goal_poses_for_task(task_map, task_id):
     if profile.get("allow_reverse", False):
         return [tuple(point["pose"]) for point in route["path"]], []
 
-    return forward_executable_route_poses(route), [
-        f"route={route['id']} reverse_tags_normalized_for_forward_only"
-    ]
+    warnings = []
+    if not route_allows_execution(task_map, route):
+        warnings.append(f"route={route['id']} reverse_tags_normalized_for_forward_only")
+    return forward_executable_route_poses(route), warnings

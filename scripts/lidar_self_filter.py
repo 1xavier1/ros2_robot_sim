@@ -60,14 +60,15 @@ def inside_box(point, box_min, box_max):
     return all(box_min[index] <= point[index] <= box_max[index] for index in range(3))
 
 
-def estimate_ring(point, vertical_fov, scan_lines):
-    if scan_lines <= 1 or vertical_fov <= 0.0:
+def estimate_ring(point, v_min, v_max, scan_lines):
+    span = v_max - v_min
+    if scan_lines <= 1 or span <= 0.0:
         return 0
 
     x, y, z = point
     horizontal_range = sqrt(x * x + y * y)
     vertical_angle = atan2(z, horizontal_range)
-    normalized = (vertical_angle + vertical_fov / 2.0) / vertical_fov
+    normalized = (vertical_angle - v_min) / span
     ring = round(normalized * (scan_lines - 1))
     return max(0, min(scan_lines - 1, int(ring)))
 
@@ -83,11 +84,12 @@ class LidarSelfFilter(Node):
 
         self.box_min = tuple(float(value) for value in self_filter["box_min"])
         self.box_max = tuple(float(value) for value in self_filter["box_max"])
-        self.min_range = float(lidar_mount["min_range"])
-        self.max_range = float(lidar_mount["max_range"])
-        self.vertical_fov = float(lidar_mount["vertical_fov"])
-        self.scan_lines = int(lidar_mount["scan_lines"])
-        self.scan_rate = float(lidar_mount["scan_rate"])
+        self.min_range = float(lidar_mount["range_min"])
+        self.max_range = float(lidar_mount["range_max"])
+        self.v_min = float(lidar_mount["v_min"])
+        self.v_max = float(lidar_mount["v_max"])
+        self.scan_lines = int(lidar_mount["v_samples"])
+        self.scan_rate = float(lidar_mount["update_rate"])
         self.translation = tuple(float(value) for value in lidar_mount["xyz"])
         self.rotation = rotation_matrix_from_rpy(
             *(float(value) for value in lidar_mount["rpy"])
@@ -117,7 +119,7 @@ class LidarSelfFilter(Node):
                 continue
             if inside_box(point_in_base, self.box_min, self.box_max):
                 continue
-            ring = estimate_ring((x, y, z), self.vertical_fov, self.scan_lines)
+            ring = estimate_ring((x, y, z), self.v_min, self.v_max, self.scan_lines)
             time_offset_us = (point_index / max(point_count - 1, 1)) * scan_period_us
             filtered_points.append((x, y, z, intensity, ring, time_offset_us))
 

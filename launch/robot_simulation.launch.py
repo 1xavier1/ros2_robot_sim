@@ -27,7 +27,7 @@ def generate_launch_description():
 
     spawn_x = LaunchConfiguration('x', default='0.8')
     spawn_y = LaunchConfiguration('y', default='0.0')
-    spawn_z = LaunchConfiguration('z', default='0.07')
+    spawn_z = LaunchConfiguration('z', default='0.0')
 
     ld_lib_path = SetEnvironmentVariable(
         name='LD_LIBRARY_PATH',
@@ -112,8 +112,8 @@ def generate_launch_description():
             description='Robot spawn X position near the tunnel entrance'),
         DeclareLaunchArgument('y', default_value='0.0',
             description='Robot spawn Y position'),
-        DeclareLaunchArgument('z', default_value='0.07',
-            description='Robot spawn Z position'),
+        DeclareLaunchArgument('z', default_value='0.0',
+            description='Robot spawn Z position (base_footprint on ground)'),
         DeclareLaunchArgument('rviz', default_value='true',
             description='Start RViz with the simulation'),
         DeclareLaunchArgument('gui', default_value='true',

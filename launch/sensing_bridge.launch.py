@@ -13,6 +13,9 @@ SENSING_REMAPS = [
     ('/robot/imu/data', '/sensing/imu/data'),
     ('/robot/wheel_encoder/rear_average', '/sensing/wheel/speed'),
     ('/robot/rtk_gps/fix', '/sensing/gps/fix'),
+    ('/robot/mmwave/front/points', '/sensing/mmwave/front/points'),
+    ('/robot/mmwave/rear_left/points', '/sensing/mmwave/rear_left/points'),
+    ('/robot/mmwave/rear_right/points', '/sensing/mmwave/rear_right/points'),
 ]
 
 SENSING_RELAYS = [
@@ -21,6 +24,9 @@ SENSING_RELAYS = [
     ('relay_imu_data', 'sensor_msgs/msg/Imu'),
     ('relay_wheel_speed', 'std_msgs/msg/Float64'),
     ('relay_gps_fix', 'sensor_msgs/msg/NavSatFix'),
+    ('relay_mmwave_front', 'sensor_msgs/msg/PointCloud2'),
+    ('relay_mmwave_rear_left', 'sensor_msgs/msg/PointCloud2'),
+    ('relay_mmwave_rear_right', 'sensor_msgs/msg/PointCloud2'),
 ]
 
 
@@ -48,9 +54,18 @@ def generate_launch_description():
         parameters=[{'use_sim_time': LaunchConfiguration('use_sim_time')}],
     )
 
+    proximity_monitor = Node(
+        package='robot_description',
+        executable='proximity_safety_monitor.py',
+        name='proximity_safety_monitor',
+        output='screen',
+        parameters=[{'use_sim_time': LaunchConfiguration('use_sim_time')}],
+    )
+
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='true'),
         lidar_self_filter,
+        proximity_monitor,
         *[
             relay_node(name, input_topic, output_topic, message_type)
             for (name, message_type), (input_topic, output_topic)

@@ -31,7 +31,7 @@
       lidar_type: 2
 
       # scan_line: vertical channel count of the simulated/real LiDAR.
-      # Unit: count.
+      # Unit: count. Matches sensor_mount.yaml lidar v_samples.
       scan_line: 32
 
       # scan_rate: LiDAR rotation or scan frequency.

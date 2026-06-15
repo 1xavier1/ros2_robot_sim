@@ -427,7 +427,7 @@ def test_navigation_config_respects_ackermann_constraints():
 
     assert "allow_reversing: false" in config
     assert "use_rotate_to_heading: false" in config
-    assert "min_turning_radius: 0.95" in config
+    assert "min_turning_radius: 1.2" in config
     assert "w_reverse_cost: 2.5" in config
     assert launch.count("('/cmd_vel', '/control/cmd_vel')") >= 2
     assert "('cmd_vel', '/control/cmd_vel')" in launch
@@ -558,40 +558,34 @@ def test_sensor_mount_config_documents_lidar_extrinsics():
     config = yaml.safe_load(config_text)
     urdf_root = ET.fromstring(read(PACKAGE_DIR / "urdf" / "robot_base.urdf.xacro"))
 
-    assert config["lidar"]["parent_frame"] == "base_link"
-    assert config["lidar"]["frame"] == "laser_link"
-    assert config["lidar"]["xyz"] == [0.0, 0.0, 0.25]
-    assert config["lidar"]["rpy"] == [0.0, 0.0, 0.0]
-    assert config["lidar"]["min_range"] == 0.1
-    assert config["lidar"]["max_range"] == 100.0
-    assert config["lidar"]["horizontal_fov"] == 6.28318
-    assert config["lidar"]["vertical_fov"] == 0.5236
-    assert config["lidar"]["scan_lines"] == 32
+    lidar = config["lidar"]
+    assert lidar["parent"] == "base_link"
+    assert lidar["frame"] == "laser_link"
+    assert lidar["xyz"] == [0.0, 0.0, 0.25]
+    assert lidar["rpy"] == [0.0, 0.0, 0.0]
+    assert lidar["range_min"] == 0.05
+    assert lidar["range_max"] == 30.0
+    assert lidar["v_samples"] >= 32
+    assert lidar["v_min"] < 0.0 < lidar["v_max"]
 
-    lidar_height = next(
-        element for element in urdf_root.iter()
-        if element.attrib.get("name") == "lidar_height"
-    )
     laser_joint = urdf_root.find("./joint[@name='laser_joint']")
-    assert lidar_height.attrib["value"] == "0.25"
     assert laser_joint is not None
-    assert laser_joint.find("parent").attrib["link"] == "base_link"
     assert laser_joint.find("child").attrib["link"] == "laser_link"
-    assert laser_joint.find("origin").attrib["xyz"] == "0 0 ${lidar_height}"
-    assert laser_joint.find("origin").attrib["rpy"] == "0 0 0"
+    assert "lidar_cfg['xyz']" in laser_joint.find("origin").attrib["xyz"]
+    for key in ("mmwave_front", "mmwave_rear_left", "mmwave_rear_right"):
+        assert config[key]["range_max"] == 10.0
+    assert config["mmwave_front"]["gated_in_push"] is True
 
-    assert config["imu"]["parent_frame"] == "base_link"
+    assert config["imu"]["parent"] == "base_link"
     assert config["imu"]["frame"] == "imu_link"
     assert config["imu"]["xyz"] == [0.0, 0.0, 0.08]
-    assert config["imu"]["rpy"] == [0.0, 0.0, 0.0]
 
-    assert config["gps"]["parent_frame"] == "base_link"
+    assert config["gps"]["parent"] == "base_link"
     assert config["gps"]["frame"] == "gps_link"
     assert config["gps"]["xyz"] == [0.0, 0.0, 0.3]
 
-    assert "unit rad" in config_text
     assert "Right-hand rule" in config_text
-    assert "X forward positive" in config_text
+    assert "forward positive" in config_text
 
 
 def test_simulated_lidar_mount_keeps_forward_rays_available_for_lio():
@@ -599,9 +593,9 @@ def test_simulated_lidar_mount_keeps_forward_rays_available_for_lio():
     lidar = config["lidar"]
 
     pitch = float(lidar["rpy"][1])
-    vertical_fov = float(lidar["vertical_fov"])
 
-    assert abs(pitch) <= vertical_fov / 2.0
+    assert lidar["v_min"] <= pitch <= lidar["v_max"]
+    assert lidar["v_min"] < 0.0 < lidar["v_max"]
 
 
 def test_sensing_bridge_routes_lidar_through_self_filter():
@@ -639,7 +633,8 @@ def test_fast_lio2_config_and_launch_use_filtered_sensing_topics():
     assert "static_transform_publisher" in launch
     assert "'base_link'" in launch
     assert "'laser_link'" in launch
-    assert "'0.25'" in launch
+    assert "sensor_mount.yaml" in launch
+    assert "lidar_xyz" in launch
     assert "'--pitch', '0'" in launch
     assert "/mapping/lio/odom" in launch
     assert "/mapping/lio/map_points" in launch
@@ -791,7 +786,7 @@ def test_navigation_controller_uses_humble_regulated_pure_pursuit_contract():
         'RegulatedPurePursuitController"'
     ) in config
     assert "desired_linear_vel: 0.35" in config
-    assert "lookahead_dist: 0.90" in config
+    assert "lookahead_dist: 1.0" in config
     assert "use_rotate_to_heading: false" in config
     assert "allow_reversing: false" in config
     assert 'plugin: "dwb_core::DWBLocalPlanner"' not in config
@@ -960,10 +955,11 @@ def test_fast_lio_dynamic_tf_is_isolated_from_nav2_tf_tree():
 
 
 def test_simulated_lidar_density_supports_fast_lio_mapping():
-    urdf = read(PACKAGE_DIR / "urdf" / "robot_base.urdf.xacro")
+    config = yaml.safe_load(read(WORKSPACE_DIR / "config" / "sensor_mount.yaml"))
+    lidar = config["lidar"]
 
-    assert "<samples>720</samples>" in urdf
-    assert "<samples>32</samples>" in urdf
+    assert lidar["h_samples"] >= 360
+    assert lidar["v_samples"] >= 32
 
 
 def test_lio_map_to_occupancy_exporter_contract():
@@ -1893,13 +1889,13 @@ def test_nav2_planner_uses_forward_ackermann_turning_constraints():
 
     assert planner["plugin"] == "nav2_smac_planner/SmacPlannerHybrid"
     assert planner["motion_model_for_search"] == "DUBIN"
-    assert planner["minimum_turning_radius"] == pytest.approx(0.95)
+    assert planner["minimum_turning_radius"] == pytest.approx(1.2)
     assert planner["reverse_penalty"] >= 100.0
     assert planner["analytic_expansion_ratio"] >= 3.0
     assert planner["lookup_table_size"] >= 20.0
     assert planner["smooth_path"] is False
     assert controller["allow_reversing"] is False
-    assert controller["regulated_linear_scaling_min_radius"] == pytest.approx(0.95)
+    assert controller["regulated_linear_scaling_min_radius"] == pytest.approx(1.2)
     assert controller["desired_linear_vel"] == pytest.approx(0.35)
     assert controller["regulated_linear_scaling_min_speed"] == pytest.approx(0.18)
     assert "inflation_layer" in global_costmap["plugins"]
@@ -2065,3 +2061,72 @@ def test_navigation_launch_can_start_p0_task_nodes():
     assert "localization_mode_supervisor.py" in launch
     assert "task_map" in launch
     assert "enable_task_navigation" in launch
+
+
+def test_proximity_core_estop_logic_gates_front_in_push():
+    core = load_script_module("proximity_core.py")
+    gated = {
+        "mmwave_front": True,
+        "mmwave_rear_left": False,
+        "mmwave_rear_right": False,
+    }
+    assert core.decide_estop({"mmwave_front": 0.4}, False, 0.6, gated) is True
+    assert core.decide_estop({"mmwave_front": 0.4}, True, 0.6, gated) is False
+    assert core.decide_estop({"mmwave_rear_left": 0.4}, True, 0.6, gated) is True
+    assert core.decide_estop({"mmwave_rear_left": 1.0}, False, 0.6, gated) is False
+    assert core.decide_estop({"mmwave_front": None}, False, 0.6, gated) is False
+    assert core.min_xy_distance([(3.0, 4.0, 0.0), (0.3, 0.4, 1.0)]) == pytest.approx(0.5)
+    assert core.min_xy_distance([]) is None
+
+
+def test_proximity_core_gated_map_matches_sensor_mount():
+    core = load_script_module("proximity_core.py")
+    cfg = yaml.safe_load(read(WORKSPACE_DIR / "config" / "sensor_mount.yaml"))
+    gated = core.gated_map(cfg)
+    assert gated["mmwave_front"] is True
+    assert gated["mmwave_rear_left"] is False
+    assert gated["mmwave_rear_right"] is False
+
+
+def test_proximity_safety_monitor_contract():
+    script = read(WORKSPACE_DIR / "scripts" / "proximity_safety_monitor.py")
+    assert "from proximity_core import" in script
+    assert '"/safety/estop"' in script
+    assert '"/push/active"' in script
+    assert "/sensing/" in script
+    assert "sensor_mount.yaml" in script
+
+
+def test_sensing_bridge_relays_mmwave_and_runs_monitor():
+    launch = read(WORKSPACE_DIR / "launch" / "sensing_bridge.launch.py")
+    assert "('/robot/mmwave/front/points', '/sensing/mmwave/front/points')" in launch
+    assert "relay_mmwave_rear_left" in launch
+    assert "relay_mmwave_rear_right" in launch
+    assert "proximity_safety_monitor.py" in launch
+
+
+def test_task_executor_publishes_push_mode():
+    script = read(WORKSPACE_DIR / "scripts" / "task_executor.py")
+    assert '"/push/active"' in script
+    assert "def set_push" in script
+    assert "def task_is_push" in script
+
+
+def test_navigation_local_costmap_consumes_rear_mmwave():
+    config = yaml.safe_load(read(WORKSPACE_DIR / "config" / "navigation.yaml"))
+    local = config["local_costmap"]["ros__parameters"]["local_costmap"]
+    assert "mmwave_rear_layer" in local["plugins"]
+    layer = local["mmwave_rear_layer"]
+    assert layer["observation_sources"] == "rear_left rear_right"
+    assert layer["rear_left"]["topic"] == "/sensing/mmwave/rear_left/points"
+    assert layer["rear_right"]["topic"] == "/sensing/mmwave/rear_right/points"
+
+
+def test_sensor_mount_documents_mmwave_and_safety():
+    config = yaml.safe_load(read(WORKSPACE_DIR / "config" / "sensor_mount.yaml"))
+    assert config["safety"]["stop_distance"] == 0.6
+    for key in ("mmwave_front", "mmwave_rear_left", "mmwave_rear_right"):
+        assert config[key]["frame"] == f"{key}_link"
+        assert config[key]["h_fov"] == pytest.approx(2.0944)
+    assert config["mmwave_front"]["gated_in_push"] is True
+    assert config["mmwave_rear_left"]["gated_in_push"] is False

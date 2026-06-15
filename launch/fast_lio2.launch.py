@@ -3,6 +3,8 @@
 
 import os
 
+import yaml
+
 from ament_index_python.packages import (
     PackageNotFoundError,
     get_package_share_directory,
@@ -56,6 +58,14 @@ def generate_launch_description():
         'config',
         'fast_lio.yaml',
     )
+    sensor_mount_file = os.path.join(
+        get_package_share_directory('robot_description'),
+        'config',
+        'sensor_mount.yaml',
+    )
+    with open(sensor_mount_file) as mount_stream:
+        lidar_mount = yaml.safe_load(mount_stream)['lidar']
+    lidar_xyz = [str(value) for value in lidar_mount['xyz']]
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     launch_actions.append(Node(
         package='tf2_ros',
@@ -63,9 +73,9 @@ def generate_launch_description():
         name='fast_lio_lidar_static_tf',
         output='screen',
         arguments=[
-            '--x', '0',
-            '--y', '0',
-            '--z', '0.25',
+            '--x', lidar_xyz[0],
+            '--y', lidar_xyz[1],
+            '--z', lidar_xyz[2],
             '--roll', '0',
             '--pitch', '0',
             '--yaw', '0',

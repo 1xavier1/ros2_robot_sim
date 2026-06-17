@@ -9,6 +9,8 @@ maps:
     yaml: /home/xavier/Workspace/ClaudeSpace/ros2_robot_sim/maps/uploaded_maps/min_test_map.yaml
     image: /home/xavier/Workspace/ClaudeSpace/ros2_robot_sim/maps/uploaded_maps/min_test_map.pgm
     source: remote_upload
+  nav2_keepout_mask: maps/_filters/tunnel_keepout_mask.yaml
+  push_policy: maps/_filters/tunnel_push_policy.yaml
 motion_profiles:
 - id: forward_only_safe
   vehicle_model: ackermann
@@ -632,7 +634,36 @@ tasks:
     nav_retry_count: 1
     on_failure: stop_and_wait
 map_overlays:
-  keepout_zones: []
+  keepout_zones:
+  - id: keepout-mqhsosd2
+    type: keepout
+    polygon:
+    - - -1.577
+      - 4.452
+    - - -1.577
+      - 0.981
+    - - 20.898
+      - 0.712
+    name: "\u65B0\u7981\u884C\u533A"
+    note: ''
+  - id: keepout-mqhsp1au
+    type: keepout
+    polygon:
+    - - 20.729
+      - -1.108
+    - - -1.51
+      - -1.916
+    - - -1.914
+      - -4.477
+    name: "\u65B0\u7981\u884C\u533A"
+    note: ''
   speed_zones: []
   temporary_obstacles: []
   map_corrections: []
+  push_zones: []
+  slope_zones: []
+configuration_draft:
+  vehicle_geometry: {}
+  sensor_mounts: {}
+  motion: {}
+  notes: []

@@ -941,3 +941,138 @@ colcon build --packages-select robot_description
 - `maps/min_test_map`（2026-06-10 用这套水平朝上雷达所建）回退后应重新兼容，定位时可直接复用。
 
 环境备注：本机 Claude 的 shell 起不动 gazebo（被环境 SIGTERM，exit 144），所有运行期诊断靠读取用户已启动栈的 ROS 话题完成。
+
+### 2026-06-17：Codex（地图规则与任务执行真实联动）
+
+本轮按用户要求只做 1/2/4，车辆临时设计配置页（原第 3 项）暂不继续，只保留后续 TODO。
+
+- **遥控器 bug 修复**（`remote/.worktrees/glass-workbench`）：
+  - 缩小悬浮遥控器展开/收起尺寸，顶部黑条文字和数值卡字号同步下调。
+  - 收起态点击主体只负责展开，右侧拖拽柄单独负责拖动，修复“缩起来后无法展开”。
+  - 摇杆十字线改为 CSS 绝对居中，杆帽静止时回到视觉中心。
+- **任务启动前强制校验**：
+  - `/api/execution` 的 `start` 会重新读取最新 `task_map.yaml` 并调用任务校验。
+  - 命中禁行区等 error：返回 `409 task_validation_failed`，不发布 `start_task`。
+  - 命中推料区/坡道/急转等 warning：未带 `confirm_warnings=true` 时返回 `409 task_validation_warning`；用户确认后才发送任务。
+  - 前端任务页执行按钮也先校验：错误直接提示，警告弹确认框，后端仍做最终兜底。
+- **Nav2 keepout 接入准备与产物生成**：
+  - 远控端保存地图覆盖物或切换 active map 时，会生成 `maps/_filters/<map>_keepout_mask.pgm/.yaml`。
+  - `task_map.yaml` 的 `maps.nav2_keepout_mask` 会指向生成的 mask YAML。
+  - `config/navigation.yaml` 已加入 `nav2_costmap_2d::KeepoutFilter` 和 `costmap_filter_info_server` 参数。
+  - `launch/navigation.launch.py` 新增：
+
+    ```bash
+    enable_keepout_filter:=true
+    keepout_mask:=/home/xavier/Workspace/ClaudeSpace/ros2_robot_sim/maps/_filters/<map>_keepout_mask.yaml
+    ```
+
+    默认 `enable_keepout_filter:=false`，避免未生成 mask 时影响普通导航启动。
+- **推料策略联动**:
+  - 远控端保存 `maps/_filters/<map>_push_policy.yaml`，记录 `push_zones` 与策略参数。
+  - ROS `scripts/task_executor.py` 不再只看任务的 `push: true`，如果任务目标点进入 `map_overlays.push_zones`，也会发布 `/push/active=True`。
+  - 现有 `scripts/proximity_safety_monitor.py` 已订阅 `/push/active`，推料模式下前毫米波门控关闭，后毫米波仍保持安全约束。
+
+验证结果：
+
+```bash
+cd remote/.worktrees/glass-workbench
+python3 -m compileall -q server tests
+python3 -m pytest tests/test_map_library.py tests/test_task_map_core.py -q  # 39 passed
+cd web && npx vitest run  # 26 passed
+cd web && npm run build
+
+cd /home/xavier/Workspace/ClaudeSpace/ros2_robot_sim
+python3 -m pytest src/robot_description/test/test_wheel_encoder_integration.py::test_navigation_config_respects_ackermann_constraints \
+  src/robot_description/test/test_wheel_encoder_integration.py::test_task_executor_publishes_push_mode -q  # 2 passed
+```
+
+额外用临时 FastAPI 后端做了真实 HTTP 验证：
+
+- 正常任务：`POST /api/execution` 返回 200，并返回 `validation.ok=true`。
+- 禁行区穿越：返回 `409 task_validation_failed`，未发送任务命令。
+- 推料区穿越：首次返回 `409 task_validation_warning`，带 `confirm_warnings=true` 后返回 200。
+
+当前限制 / 后续 TODO：
+
+- `remote` 的 TestClient context manager 在当前 Codex 运行环境中会卡住，手动 lifespan 正常、真实 uvicorn HTTP 验证正常；后续如果要恢复 API 自动化全量测试，先排查本机 `fastapi/starlette/httpx/anyio` 组合。
+- 车辆配置页仍未应用到 Nav2 footprint、转弯半径、速度、传感器外参和 LiDAR self-filter，这是用户明确暂缓的第 3 项。
+- keepout filter 已有 Nav2 配置和 mask 产物，但真实栈需要用 `enable_keepout_filter:=true keepout_mask:=...` 启动后再在 RViz/Nav2 行为中验收。
+
+### 2026-06-17：Codex（牛场 Gazebo world）
+
+- 新增 `worlds/cattle_barn.world`：
+  - 默认室外出生区域：`outdoor_spawn_pad`，默认 spawn `x=-10.0, y=0.0`。
+  - 牛场主行车/饲喂通道：`main_feed_alley_4m`，宽 `4.0 m`。
+  - 横向转场通道：`turning_corridor_5m`，宽 `5.0 m`。
+  - 牛栏服务通道：`service_alleys_3m`，宽 `3.0 m`。
+  - 包含牛舍地面、料槽、栏杆、室外硬化地面、料堆、水槽和低矮障碍。
+- `launch/robot_simulation.launch.py` 默认 world 改为 `cattle_barn.world`，并新增 `world` launch 参数。
+- `start.sh` 支持 world 切换：
+
+  ```bash
+  ./start.sh
+  ./start.sh --world cattle_barn
+  ./start.sh --world corridor_tunnel
+  ./start.sh --world /absolute/path/to/custom.world
+  ./start.sh --world cattle_barn x:=-10.0 y:=0.0
+  ```
+
+- `scripts/start_full_stack.sh` 支持 `WORLD=...`：
+
+  ```bash
+  WORLD=worlds/cattle_barn.world ./scripts/start_full_stack.sh
+  WORLD=worlds/corridor_tunnel.world ./scripts/start_full_stack.sh
+  ```
+
+验证：
+
+```bash
+python3 -m pytest src/robot_description/test/test_wheel_encoder_integration.py::test_robot_simulation_launch_can_enable_sensing_bridge \
+  src/robot_description/test/test_wheel_encoder_integration.py::test_robot_simulation_launch_allows_slow_gazebo_spawn_service \
+  src/robot_description/test/test_wheel_encoder_integration.py::test_cattle_barn_world_documents_realistic_lane_sizes -q
+python3 -m py_compile launch/robot_simulation.launch.py
+python3 - <<'PY'
+import xml.etree.ElementTree as ET
+ET.parse('worlds/cattle_barn.world')
+print('cattle_barn.world xml ok')
+PY
+bash -n start.sh scripts/start_full_stack.sh
+colcon build --packages-select robot_description
+```
+
+### 2026-06-17：Codex（牛棚顶棚与棚内 GPS 屏蔽）
+
+- `worlds/cattle_barn.world` 已在牛棚上方增加 `gps_blocking_barn_roof`：
+  - 顶棚中心：`x=18.0, y=0.0, z=4.2`
+  - 顶棚尺寸：`46 m x 22 m x 0.18 m`
+  - 覆盖主牛棚、料道、服务通道和转场区域；室外默认出生点 `x=-10.0, y=0.0` 保持在棚外。
+  - 增加 `barn_roof_beams`，用于视觉上区分棚内/棚外区域。
+- `config/localization_modes.yaml` 新增仿真 GPS 阴影区：
+
+  ```yaml
+  gps_blocked_regions:
+    - id: cattle_barn_roof
+      x_min: -3.0
+      x_max: 39.0
+      y_min: -10.5
+      y_max: 10.5
+  ```
+
+- `scripts/localization_mode_manager.py` 现在订阅 `/robot/odom`，用车体 XY 判断是否进入 `gps_blocked_regions`：
+  - 棚外且 GPS 质量合格：发布 `/localization/mode=OUTDOOR`，并转发 `/localization/gps/gated`。
+  - 棚内：强制 `/localization/mode=BARN`，不转发 gated GPS。
+- 注意：Gazebo 原始 GPS 插件仍可能继续发布 `/sensing/gps/fix`。系统侧应使用 `/localization/gps/gated` 作为“可用 GPS”，棚内该话题不会继续转发 GPS。
+
+验证：
+
+```bash
+python3 -m pytest src/robot_description/test/test_wheel_encoder_integration.py::test_cattle_barn_world_documents_realistic_lane_sizes \
+  src/robot_description/test/test_wheel_encoder_integration.py::test_localization_mode_manager_defines_outdoor_transition_barn_modes -q
+python3 -m py_compile scripts/localization_mode_manager.py
+python3 - <<'PY'
+import xml.etree.ElementTree as ET
+ET.parse('worlds/cattle_barn.world')
+print('cattle_barn.world xml ok')
+PY
+colcon build --packages-select robot_description
+```

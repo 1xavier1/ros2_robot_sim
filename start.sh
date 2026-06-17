@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================
 # ROS2 四轮差速驱动机器人仿真 — 启动脚本
-# 用法: ./start.sh [-h|--help] [--no-rviz] [--no-build]
+# 用法: ./start.sh [-h|--help] [--no-rviz] [--no-build] [--world WORLD]
 # ============================================================
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -24,6 +24,7 @@ usage() {
     echo "选项:"
     echo "  --no-rviz     不启动 RViz2 可视化"
     echo "  --no-build    跳过 colcon build"
+    echo "  --world WORLD 使用指定 world，可填 cattle_barn、corridor_tunnel 或 .world 路径"
     echo "  -h, --help    显示帮助"
     exit 0
 }
@@ -31,15 +32,57 @@ usage() {
 # --- 参数解析 ---
 NO_RVIZ="false"
 NO_BUILD="false"
+WORLD="${WORLD:-cattle_barn}"
 ROS_ARGS=""
 
-for arg in "$@"; do
-    case $arg in
-        --no-rviz)  NO_RVIZ="true";  ROS_ARGS="$ROS_ARGS rviz:=false" ;;
-        --no-build) NO_BUILD="true" ;;
-        -h|--help)  usage ;;
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --no-rviz)
+            NO_RVIZ="true"
+            ROS_ARGS="$ROS_ARGS rviz:=false"
+            shift
+            ;;
+        --no-build)
+            NO_BUILD="true"
+            shift
+            ;;
+        --world)
+            WORLD="$2"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            ;;
+        *:=*)
+            ROS_ARGS="$ROS_ARGS $1"
+            shift
+            ;;
+        *)
+            log_warn "忽略未知参数: $1"
+            shift
+            ;;
     esac
 done
+
+resolve_world_file() {
+    local world="$1"
+    if [[ "$world" = /* ]]; then
+        printf '%s\n' "$world"
+        return
+    fi
+    if [[ "$world" != *.world ]]; then
+        world="${world}.world"
+    fi
+    printf '%s/worlds/%s\n' "$SCRIPT_DIR" "$world"
+}
+
+WORLD_FILE="$(resolve_world_file "$WORLD")"
+if [ ! -f "$WORLD_FILE" ]; then
+    log_error "未找到 world 文件: $WORLD_FILE"
+    log_error "可用示例: --world cattle_barn 或 --world corridor_tunnel"
+    exit 1
+fi
+ROS_ARGS="$ROS_ARGS world:=$WORLD_FILE"
 
 echo "================================================"
 echo "  ROS2 四轮差速驱动机器人仿真系统"
@@ -128,7 +171,7 @@ fi
 # --- 6. 启动仿真 ---
 echo ""
 log_step "启动仿真..."
-log_info "  世界文件: corridor_tunnel.world"
+log_info "  世界文件: $WORLD_FILE"
 log_info "  机器人:   ackermann_robot"
 if [ "$NO_RVIZ" = "false" ]; then
     log_info "  RViz2:    已启用"

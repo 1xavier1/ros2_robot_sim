@@ -5,6 +5,15 @@ localization_modes:
   # gps_jump_threshold: maximum accepted GPS position jump between updates, unit m.
   gps_jump_threshold: 3.0
 
+  # Simulation-only GPS shadow regions, in map/odom XY meters.
+  # cattle_barn_roof covers the roofed barn area while leaving the outdoor spawn pad outside.
+  gps_blocked_regions:
+    - id: cattle_barn_roof
+      x_min: -3.0
+      x_max: 39.0
+      y_min: -10.5
+      y_max: 10.5
+
   OUTDOOR:
     # gps_weight: relative GPS influence in outdoor mode.
     gps_weight: 1.0

@@ -70,10 +70,22 @@ def generate_launch_description():
     map_align_yaw = LaunchConfiguration('map_align_yaw', default='0.0')
     gps_anchor_blend_weight = LaunchConfiguration('gps_anchor_blend_weight', default='0.0')
     enable_task_navigation = LaunchConfiguration('enable_task_navigation', default='false')
+    enable_keepout_filter = LaunchConfiguration('enable_keepout_filter', default='false')
     default_map_yaml = os.path.join(pkg_share, '..', '..', '..', '..', 'maps', 'barn_corridor_sim_001.yaml')
     if not os.path.exists(default_map_yaml):
         default_map_yaml = os.path.join(pkg_share, 'maps', 'barn_corridor_sim_001.yaml')
     map_yaml = LaunchConfiguration('map', default=default_map_yaml)
+    default_keepout_mask = os.path.join(
+        pkg_share,
+        '..',
+        '..',
+        '..',
+        '..',
+        'maps',
+        '_filters',
+        'barn_corridor_sim_001_keepout_mask.yaml',
+    )
+    keepout_mask = LaunchConfiguration('keepout_mask', default=default_keepout_mask)
     default_task_map = os.path.join(pkg_share, 'config', 'task_map.example.yaml')
     task_map = LaunchConfiguration('task_map', default=default_task_map)
 
@@ -101,6 +113,12 @@ def generate_launch_description():
         DeclareLaunchArgument('enable_task_navigation',
                               default_value='false',
                               description='Start P0 route recorder, task executor, and localization mode supervisor.'),
+        DeclareLaunchArgument('enable_keepout_filter',
+                              default_value='false',
+                              description='Start Nav2 keepout mask servers and apply global keepout filter.'),
+        DeclareLaunchArgument('keepout_mask',
+                              default_value=default_keepout_mask,
+                              description='Keepout mask YAML generated from task_map map_overlays.keepout_zones.'),
         DeclareLaunchArgument('task_map',
                               default_value=default_task_map,
                               description='Task map yaml used by taught task navigation.'),
@@ -246,6 +264,42 @@ def generate_launch_description():
         output='screen',
         parameters=[{'use_sim_time': use_sim_time, 'yaml_filename': map_yaml}],
     ))
+
+    nodes.extend([
+        Node(
+            package='nav2_map_server',
+            executable='map_server',
+            name='filter_mask_server',
+            output='screen',
+            condition=IfCondition(enable_keepout_filter),
+            parameters=[{
+                'use_sim_time': use_sim_time,
+                'yaml_filename': keepout_mask,
+                'topic_name': 'keepout_filter_mask',
+                'frame_id': 'map',
+            }],
+        ),
+        Node(
+            package='nav2_map_server',
+            executable='costmap_filter_info_server',
+            name='costmap_filter_info_server',
+            output='screen',
+            condition=IfCondition(enable_keepout_filter),
+            parameters=[config_file, {'use_sim_time': use_sim_time}],
+        ),
+        Node(
+            package='nav2_lifecycle_manager',
+            executable='lifecycle_manager',
+            name='lifecycle_manager_keepout_filter',
+            output='screen',
+            condition=IfCondition(enable_keepout_filter),
+            parameters=[{
+                'use_sim_time': use_sim_time,
+                'autostart': True,
+                'node_names': ['filter_mask_server', 'costmap_filter_info_server'],
+            }],
+        ),
+    ])
 
     # GPS gate and mode hints for fused localization
     nodes.append(Node(

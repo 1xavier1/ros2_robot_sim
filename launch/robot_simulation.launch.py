@@ -18,14 +18,15 @@ def generate_launch_description():
 
     urdf_file = os.path.join(robot_description_share, 'urdf', 'robot_base.urdf.xacro')
     rviz_config = os.path.join(robot_description_share, 'rviz', 'robot_config.rviz')
-    world_file = os.path.join(robot_description_share, 'worlds', 'corridor_tunnel.world')
+    default_world_file = os.path.join(robot_description_share, 'worlds', 'cattle_barn.world')
+    world_file = LaunchConfiguration('world', default=default_world_file)
 
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     use_rviz = LaunchConfiguration('rviz', default='true')
     use_gazebo_gui = LaunchConfiguration('gui', default='true')
     sensing_bridge = LaunchConfiguration('sensing_bridge', default='true')
 
-    spawn_x = LaunchConfiguration('x', default='0.8')
+    spawn_x = LaunchConfiguration('x', default='-10.0')
     spawn_y = LaunchConfiguration('y', default='0.0')
     spawn_z = LaunchConfiguration('z', default='0.0')
 
@@ -108,8 +109,10 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='true'),
-        DeclareLaunchArgument('x', default_value='0.8',
-            description='Robot spawn X position near the tunnel entrance'),
+        DeclareLaunchArgument('world', default_value=default_world_file,
+            description='Gazebo world file. Use an absolute path or start.sh --world NAME.'),
+        DeclareLaunchArgument('x', default_value='-10.0',
+            description='Robot spawn X position on the outdoor pad in cattle_barn.world'),
         DeclareLaunchArgument('y', default_value='0.0',
             description='Robot spawn Y position'),
         DeclareLaunchArgument('z', default_value='0.0',

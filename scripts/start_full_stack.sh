@@ -3,12 +3,13 @@ set -euo pipefail
 
 # Simple full-stack starter for manual validation.
 # Edit these defaults directly, or override them from the shell:
-#   GUI=false MAP=maps/my_map.yaml ./scripts/start_full_stack.sh
+#   GUI=false WORLD=worlds/cattle_barn.world MAP=maps/my_map.yaml ./scripts/start_full_stack.sh
 GUI="${GUI:-true}"
 RVIZ="${RVIZ:-true}"
 USE_SIM_TIME="${USE_SIM_TIME:-true}"
 ENABLE_TASK_NAVIGATION="${ENABLE_TASK_NAVIGATION:-true}"
 
+WORLD="${WORLD:-worlds/cattle_barn.world}"
 MAP="${MAP:-maps/barn_corridor_sim_001.yaml}"
 RUNTIME_TASK_MAP="${RUNTIME_TASK_MAP:-maps/task_map.yaml}"
 TASK_MAP="${TASK_MAP:-$RUNTIME_TASK_MAP}"
@@ -66,9 +67,11 @@ install_is_stale() {
     for relative_path in \
         config/navigation.yaml \
         launch/navigation.launch.py \
+        launch/robot_simulation.launch.py \
         scripts/task_executor.py \
         scripts/task_map_core.py \
-        scripts/route_recorder.py; do
+        scripts/route_recorder.py \
+        worlds/cattle_barn.world; do
         if [[ ! -f "$install_share/$relative_path" ]]; then
             return 0
         fi
@@ -128,6 +131,7 @@ source_setup "$ROOT_DIR/install/setup.bash"
 mkdir -p "$LOG_DIR"
 
 MAP="$(resolve_path "$MAP")"
+WORLD="$(resolve_path "$WORLD")"
 TASK_MAP="$(resolve_path "$TASK_MAP")"
 if [[ ! -f "$TASK_MAP" ]]; then
     log "runtime task map missing, creating from config/task_map.example.yaml"
@@ -140,6 +144,7 @@ log "  GUI=$GUI"
 log "  RVIZ=$RVIZ"
 log "  USE_SIM_TIME=$USE_SIM_TIME"
 log "  ENABLE_TASK_NAVIGATION=$ENABLE_TASK_NAVIGATION"
+log "  WORLD=$WORLD"
 log "  MAP=$MAP"
 log "  TASK_MAP=$TASK_MAP"
 log "  LOG_DIR=$LOG_DIR"
@@ -149,6 +154,7 @@ start_launch simulation \
     gui:="$GUI" \
     rviz:="$RVIZ" \
     use_sim_time:="$USE_SIM_TIME" \
+    world:="$WORLD" \
     sensing_bridge:=true
 
 log "waiting ${SIM_WAIT_SECONDS}s for simulation and sensing topics"

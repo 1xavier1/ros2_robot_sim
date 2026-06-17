@@ -19,6 +19,7 @@ from task_map_core import (
     item_by_id,
     load_task_map,
     motion_profiles_by_id,
+    point_in_polygon,
     yaw_from_quaternion,
 )
 
@@ -107,7 +108,7 @@ class TaskExecutor(Node):
             self.publish_status(f"BLOCKED; reason={exc}")
             return
         self.active_task_id = task_id
-        self.set_push(self.task_is_push(task_id))
+        self.set_push(self.task_is_push(task_id, poses))
         self.remaining_poses = list(poses)
         self.state = "RUNNING"
         warning_text = "" if not warnings else "; warning=" + ",".join(warnings)
@@ -121,12 +122,20 @@ class TaskExecutor(Node):
         self.push_active = bool(active)
         self.push_pub.publish(Bool(data=self.push_active))
 
-    def task_is_push(self, task_id):
+    def task_is_push(self, task_id, poses=None):
         try:
             task = item_by_id(self.task_map["tasks"], task_id, "task")
         except ValueError:
             return False
-        return bool(task.get("push", False))
+        if task.get("push", False):
+            return True
+        push_zones = self.task_map.get("map_overlays", {}).get("push_zones", [])
+        for pose in poses or []:
+            for zone in push_zones:
+                polygon = zone.get("polygon") or []
+                if len(polygon) >= 3 and point_in_polygon(pose[0], pose[1], polygon):
+                    return True
+        return False
 
     def ensure_reverse_policy(self, task_id):
         task = next(item for item in self.task_map["tasks"] if item["id"] == task_id)

@@ -323,6 +323,9 @@ def test_robot_simulation_launch_can_enable_sensing_bridge():
 
     assert "sensing_bridge.launch.py" in launch
     assert "sensing_bridge" in launch
+    assert "cattle_barn.world" in launch
+    assert "DeclareLaunchArgument('world'" in launch
+    assert "'world': world_file" in launch
     assert "gui" in launch
     assert "'gui': use_gazebo_gui" in launch
     assert "DeclareLaunchArgument('sensing_bridge'" in launch
@@ -333,8 +336,27 @@ def test_robot_simulation_launch_allows_slow_gazebo_spawn_service():
     launch = read(WORKSPACE_DIR / "launch" / "robot_simulation.launch.py")
 
     assert "'-timeout', '120'" in launch
-    assert "spawn_x = LaunchConfiguration('x', default='0.8')" in launch
-    assert "DeclareLaunchArgument('x', default_value='0.8'" in launch
+    assert "spawn_x = LaunchConfiguration('x', default='-10.0')" in launch
+    assert "DeclareLaunchArgument('x', default_value='-10.0'" in launch
+
+
+def test_cattle_barn_world_documents_realistic_lane_sizes():
+    world = read(WORKSPACE_DIR / "worlds" / "cattle_barn.world")
+    start = read(WORKSPACE_DIR / "start.sh")
+    full_stack = read(WORKSPACE_DIR / "scripts" / "start_full_stack.sh")
+
+    assert "<world name=\"cattle_barn_world\">" in world
+    assert "main_feed_alley_4m" in world
+    assert "turning_corridor_5m" in world
+    assert "service_alleys_3m" in world
+    assert "outdoor_spawn_pad" in world
+    assert "gps_blocking_barn_roof" in world
+    assert "<size>46 22 0.18</size>" in world
+    assert "--world WORLD" in start
+    assert "WORLD=" in start
+    assert "world:=$WORLD_FILE" in start
+    assert "WORLD=" in full_stack
+    assert "world:=\"$WORLD\"" in full_stack
 
 
 def test_slam_navigation_launch_sequences_sim_fast_lio_and_nav2():
@@ -436,6 +458,10 @@ def test_navigation_config_respects_ackermann_constraints():
     assert "max_velocity: [0.5, 0.0, 1.0]" in config
     assert "scale_velocities: true" in config
     assert "speed_lim_vx" not in config
+    assert "nav2_costmap_2d::KeepoutFilter" in config
+    assert "costmap_filter_info_server" in config
+    assert "filter_mask_server" in launch
+    assert "enable_keepout_filter" in launch
 
 
 def test_localization_verification_script_checks_filtered_odom():
@@ -661,9 +687,13 @@ def test_localization_mode_manager_defines_outdoor_transition_barn_modes():
     assert "BARN" in config
     assert "gps_covariance_threshold: 25.0" in config
     assert "gps_jump_threshold: 3.0" in config
+    assert "gps_blocked_regions:" in config
+    assert "cattle_barn_roof" in config
     assert "/localization/mode" in script
     assert "/localization/fusion_weights" in script
     assert "/localization/gps/gated" in script
+    assert "/robot/odom" in script
+    assert "gps_blocked_by_region" in script
     assert "NavSatFix" in script
 
 
@@ -2110,6 +2140,8 @@ def test_task_executor_publishes_push_mode():
     assert '"/push/active"' in script
     assert "def set_push" in script
     assert "def task_is_push" in script
+    assert "point_in_polygon" in script
+    assert "push_zones" in script
 
 
 def test_navigation_local_costmap_consumes_rear_mmwave():

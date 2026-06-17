@@ -21,6 +21,265 @@
 3. 加载已保存地图后执行固定任务，并能在 Web 和 RViz 中观察车辆、任务路径、Nav2 规划路径。
 4. 后续迁移到真车时，GPS 信号好的区域用于校准和全局约束；无 GPS 区域依靠轮速、IMU、LiDAR 维持定位。
 
+## 2026-06-17：Codex 接手后的 remote 工作台版本
+
+### 当前可测试入口
+
+当前可测试版本在 remote 的隔离 worktree 中：
+
+```bash
+/home/xavier/Workspace/ClaudeSpace/remote/.worktrees/glass-workbench
+```
+
+当前分支：
+
+```bash
+feature/glass-workbench
+```
+
+当前后端已运行在：
+
+```text
+http://localhost:8765
+```
+
+局域网访问可尝试：
+
+```text
+http://192.168.71.20:8765
+http://192.168.3.82:8765
+```
+
+当前 `8765/tcp` 由 Python 后端进程占用。页面返回的静态资源与当前 worktree 最新构建一致：
+
+```text
+/assets/index-QoRFpxmV.js
+/assets/index-DYTwQJ7_.css
+```
+
+关键接口已确认：
+
+```text
+GET /                         200 text/html
+GET /api/status               200 application/json
+GET /api/configuration-draft  200 application/json
+GET /api/map-overlays         200 application/json
+```
+
+`/api/status` 当前能返回 `pose`、`localization_status`、`odom` 等状态，说明 remote 后端正在接收运行态数据。若页面显示 ROS 相关空态，优先检查仿真栈和 `/remote_console` 节点。
+
+### 如何重新启动 remote
+
+如果需要停止并重启 remote：
+
+```bash
+cd /home/xavier/Workspace/ClaudeSpace/remote/.worktrees/glass-workbench
+./stop.sh
+./start.sh --host 0.0.0.0 --port 8765
+```
+
+如果 8765 被旧进程占用，又不想影响当前服务，可临时换端口：
+
+```bash
+./start.sh --host 0.0.0.0 --port 8766
+```
+
+当前版本使用 FastAPI 直接服务 `web/dist`，不需要额外启动 Vite。开发调试时才进入 `web/` 使用 `npm run dev`。
+
+### 已完成的主要功能
+
+#### 1. Pilo 风格控制台 UI
+
+- 将整体 UI 调整为浅色、黑白基底、电光绿色点缀的 Pilo 风格。
+- 顶栏、地图、状态流水线、速度仪表、地图页、任务页、配置页做了统一视觉。
+- 悬浮遥控器全局化，可拖动，可折叠，速度/转向用数字 + 条形动效展示。
+- 提供 Pad/车载屏全屏启动脚本 `start_kiosk.sh` 和 README 使用说明。
+
+#### 2. 作业区域规则编辑器
+
+地图工作台已支持半联动草稿闭环：
+
+- 禁行区 `keepout_zones`
+- 推料区 `push_zones`
+- 地图擦除 `map_corrections`
+- 临时障碍 `temporary_obstacles`
+
+推料区保存 `policy`：
+
+```json
+{
+  "allow_front_contact": true,
+  "front_ignore_distance": 0.6,
+  "max_speed": 0.18,
+  "reverse_allowed": false
+}
+```
+
+后端校验已升级：
+
+- 路线穿越禁行区：`errors`，`ok=false`
+- 路线进入推料区：`warnings`
+- 路线经过地图修正/临时障碍：`warnings`
+- 旧 map edit 缺少 `polygon` 时读取不崩溃；新写入缺少 `polygon` 时拒绝。
+
+前端 `summarizeValidation()` 已支持：
+
+- `structured_errors`
+- `structured_warnings`
+- legacy 倒车 warning 和 structured 倒车 warning 的语义去重。
+
+#### 3. 车辆临时设计工作台
+
+配置页已增强为可保存草稿的车辆临时设计工作台：
+
+- 俯视图 / 侧视图切换。
+- 俯视图展示车体、推板、传感器 X/Y 位置和简化感知范围。
+- 侧视图展示车高、离地间隙、推板高度、传感器 X/Z 位置。
+- 车体参数：
+  - `length`
+  - `width`
+  - `height`
+  - `wheelbase`
+  - `track_width`
+  - `ground_clearance`
+  - `blade_width`
+  - `blade_offset`
+  - `blade_height`
+  - `blade_ground_clearance`
+- 传感器参数：
+  - `xyz`
+  - `size`
+  - `range`
+  - `fov_deg`
+- 传感器列表：
+  - `lidar`
+  - `front_radar`
+  - `rear_radar`
+- 风险提示：
+  - 推板宽度小于车宽。
+  - 推板离地过低。
+  - 传感器安装过低。
+  - 前毫米波可能被推板遮挡。
+  - 允许倒车时后毫米波感知不足。
+
+注意：这些配置只保存到 `configuration_draft`，不会直接改 URDF/Xacro、Nav2、costmap 或运行时控制逻辑。
+
+### 设计与实现文档
+
+新增规格和计划文档位于 remote worktree：
+
+```text
+docs/superpowers/specs/2026-06-17-work-area-rule-editor-design.md
+docs/superpowers/plans/2026-06-17-work-area-rule-editor.md
+docs/superpowers/specs/2026-06-17-vehicle-design-draft-workbench-design.md
+docs/superpowers/plans/2026-06-17-vehicle-design-draft-workbench.md
+```
+
+参考 UI 设计稿仍在：
+
+```text
+/home/xavier/Workspace/ClaudeSpace/remote/docs/UIDEMO
+```
+
+### 关键提交
+
+remote worktree 最近关键提交：
+
+```text
+4beb904 feat: add dual view vehicle draft editor
+d7beba2 feat: add vehicle draft helpers
+6a3f9e4 docs: plan vehicle design draft workbench
+fa19db9 docs: specify vehicle design draft workbench
+e738991 feat: add work area rule editor UI
+6af6398 feat: summarize structured route errors
+17d676c test: cover work area validation errors
+f9f430f feat: validate work area route risks
+a1dc9c0 fix: require polygons for new map edits
+71f185f fix: preserve legacy map edit overlays
+129de09 feat: normalize work area overlays
+```
+
+### 最新验证记录
+
+已运行并通过：
+
+```bash
+cd /home/xavier/Workspace/ClaudeSpace/remote/.worktrees/glass-workbench/web
+npx vitest run
+npm run build
+```
+
+结果：
+
+```text
+5 test files passed
+26 tests passed
+vite build passed
+```
+
+配置草稿后端回归：
+
+```bash
+cd /home/xavier/Workspace/ClaudeSpace/remote/.worktrees/glass-workbench
+python3 -m pytest \
+  tests/test_api_taskmap.py::test_configuration_draft_api_roundtrip \
+  tests/test_task_map_core.py::test_normalize_configuration_draft_copies_sections \
+  -q
+```
+
+结果：
+
+```text
+2 passed, 1 warning
+```
+
+此前作业区域规则编辑完成时，后端全量测试通过：
+
+```text
+116 passed, 1 warning
+```
+
+### 当前建议测试流程
+
+打开：
+
+```text
+http://localhost:8765
+```
+
+建议按以下顺序人工测试：
+
+1. 配置页：
+   - 切换俯视图 / 侧视图。
+   - 调整车高、轴距、轮距、离地间隙。
+   - 调整推板宽度、前伸、高度、离地高度。
+   - 调整激光、前毫米波、后毫米波的 X/Y/Z、尺寸、感知距离、水平视场角。
+   - 观察预览和风险提示是否实时变化。
+   - 点击保存，刷新页面确认草稿仍在。
+2. 地图页：
+   - 绘制禁行区。
+   - 绘制推料区，并确认推料策略字段可保存。
+   - 绘制地图擦除和临时障碍。
+   - 保存草稿后刷新确认仍在。
+3. 任务页：
+   - 对经过禁行区的任务进行校验，应显示错误并 `ok=false`。
+   - 对进入推料区或地图修正区的任务进行校验，应显示 warning。
+4. 驾驶页：
+   - 测试悬浮遥控器展开、折叠、拖动。
+   - 如果仿真栈运行，测试手动控制和急停。
+
+### 已知问题与后续方向
+
+- 用户已明确说设置页“暂时这样，目前有很多问题”。本版本只保证草稿编辑、预览、保存和基础风险提示可测，不代表最终车体设计体验定稿。
+- 车辆草稿不会自动同步到 URDF/Xacro、Nav2 footprint、costmap 或控制器参数。
+- 作业区域规则不会直接写入 Nav2 keepout filter 或真实代价地图。
+- 坡道/非水平地面暂不继续做。
+- 下一阶段如果继续推进，建议回到核心运动问题：
+  - 前进-only 与可倒车模式分离。
+  - 路径规划必须匹配车辆最小转弯半径和可执行能力。
+  - 路径被未知障碍阻断时重规划，而不是只规划一次。
+  - 可倒车模式下必须融合后毫米波避障。
+
 ## 当前节点状态
 
 当前仿真栈以 `scripts/start_full_stack.sh` 为准。最近一次运行中确认存在以下核心节点：
